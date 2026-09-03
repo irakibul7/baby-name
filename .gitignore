@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+
+.openai/
+/AGENTS.md
+/*.jpg
+/reference-option-2.png
+/implementation-*.png
