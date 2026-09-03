@@ -112,12 +112,20 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   display: flex; justify-content: space-between; align-items: center; font-family: "Fredoka", sans-serif; font-size: 22px; font-weight: 600;
   cursor: pointer; transition: transform 160ms ease, background 160ms ease;
 }
+.name-identity { min-width: 0; display: flex; align-items: center; gap: 9px; text-align: left; }
+.name-identity b { font-size: 22px; font-weight: 600; }
+.native-list-name { font-family: Arial, sans-serif; font-size: 19px; line-height: 1; }
+.name-identity small {
+  padding: 4px 7px; border-radius: 999px; background: rgba(7, 27, 67, 0.07);
+  color: #63708a; font-family: "Nunito", sans-serif; font-size: 9px; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase;
+}
 .name-row:hover { transform: translateX(3px); }
 .boy .name-row svg { color: var(--teal); }
 .girl .name-row svg { color: var(--yellow-dark); }
 .boy .name-row.active { background: var(--teal); color: #fff; border-color: var(--teal); }
 .girl .name-row.active { background: var(--yellow); color: var(--ink); border-color: var(--yellow); }
 .name-row.active svg { color: #fff; }
+.name-row.active .name-identity small { background: rgba(255, 255, 255, 0.2); color: inherit; }
 .add-lane-button {
   margin-top: 20px; min-height: 58px; width: 100%; border-radius: 10px; border: 2px dashed currentColor; background: rgba(255, 253, 247, 0.72);
   display: flex; justify-content: center; align-items: center; gap: 13px; font-weight: 800; cursor: pointer;
@@ -131,12 +139,15 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .match-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; position: relative; }
 .match-card {
   min-height: 270px; border: 1px solid rgba(7, 27, 67, 0.08); border-radius: 15px; background: rgba(255, 254, 250, 0.96);
-  box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px;
   cursor: pointer; transition: transform 180ms ease, border 180ms ease;
 }
 .match-card:hover { transform: translateY(-5px) rotate(-1deg); }
 .match-card.girl:hover { transform: translateY(-5px) rotate(1deg); }
 .match-card strong { font-family: "Fredoka", sans-serif; font-size: clamp(42px, 4vw, 58px); font-weight: 600; }
+.match-native { font-family: Arial, sans-serif; font-size: 28px; line-height: 1; }
+.match-card small { padding: 4px 9px; border-radius: 999px; background: rgba(7, 27, 67, 0.06); color: #68748b; font-size: 9px; font-weight: 900; letter-spacing: 0.7px; text-transform: uppercase; }
+.match-card > svg { margin-top: 8px; }
 .match-card.boy svg { color: var(--teal); }
 .match-card.girl svg { color: var(--yellow-dark); }
 .match-card.chosen { border: 4px solid currentColor; transform: translateY(-8px); }
@@ -176,7 +187,8 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .generated-card.girl { border-color: var(--yellow); }
 .generated-label { font-weight: 800; color: #5e6c86; text-transform: uppercase; letter-spacing: 1.2px; font-size: 12px; }
 .generated-card h2 { font-family: "Fredoka", sans-serif; font-size: 70px; margin: 8px 0; }
-.generated-card p { font-size: 17px; color: #5e6c86; }
+.generated-native { font-family: Arial, sans-serif; font-size: 42px; line-height: 1.2; }
+.generated-card p { margin: 12px 0 0; font-size: 17px; color: #5e6c86; }
 .generated-card button { margin-top: 45px; border: 0; border-bottom: 2px solid currentColor; background: none; padding: 8px 0; display: flex; align-items: center; gap: 8px; color: var(--teal-dark); font-weight: 900; cursor: pointer; }
 .generated-card.girl button { color: #b77d00; }
 
@@ -191,6 +203,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .poll-option.girl { border-color: var(--yellow); }
 .poll-option span { text-transform: uppercase; font-size: 12px; letter-spacing: 1px; font-weight: 900; color: #66728a; }
 .poll-option strong { font-family: "Fredoka", sans-serif; font-size: 52px; }
+.poll-native { font-family: Arial, sans-serif; font-size: 28px; font-style: normal; line-height: 1; }
 .poll-option small { font-size: 15px; font-weight: 800; }
 .poll-option > svg { position: absolute; top: 18px; right: 18px; color: var(--teal); }
 .poll-option.girl > svg { color: var(--yellow-dark); }
@@ -307,6 +320,10 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .lane-rule { margin: 12px 0 16px; }
   .name-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
   .name-row { min-height: 58px; font-size: 19px; padding: 0 17px; }
+  .name-identity { gap: 7px; }
+  .name-identity b { font-size: 19px; }
+  .native-list-name { font-size: 18px; }
+  .name-identity small { font-size: 8px; padding: 3px 6px; }
   .add-lane-button { min-height: 54px; margin-top: 14px; }
   .name-lab-view { display: flex; flex-direction: column; align-items: stretch; }
   .feature-view { margin-top: 20px; min-height: auto; padding: 27px 20px; border-radius: 21px; }
@@ -317,11 +334,13 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .lab-generate { width: 100%; min-height: 54px; }
   .generated-card { min-height: 285px; padding: 27px; width: 100%; border-radius: 18px; }
   .generated-card h2 { font-size: 61px; }
+  .generated-native { font-size: 36px; }
   .generated-card button { min-height: 48px; margin-top: 28px; }
   .poll-heading { margin-bottom: 26px; }
   .poll-options { grid-template-columns: 1fr 1fr; gap: 12px; }
   .poll-option { min-height: 185px; padding: 18px 10px; border-radius: 16px; gap: 10px; }
   .poll-option strong { font-size: 37px; }
+  .poll-native { font-size: 24px; }
   .poll-option span { font-size: 9px; }
   .dialog-backdrop { align-items: end; padding: 0; }
   .dialog { width: 100%; max-height: 88dvh; overflow-y: auto; border-radius: 24px 24px 0 0; padding: 25px 20px calc(25px + env(safe-area-inset-bottom)); }

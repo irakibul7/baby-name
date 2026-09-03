@@ -6,17 +6,37 @@ import {
 } from "@phosphor-icons/react";
 
 const starterNames = {
-  boy: ["Auden", "Felix", "Jasper", "Luca", "Miles"].map((name, index) => ({ id: `b${index}`, name, liked: name === "Luca" })),
-  girl: ["Aria", "Cleo", "Georgia", "Lena", "Nova"].map((name, index) => ({ id: `g${index}`, name, liked: name === "Lena" })),
+  boy: [
+    { name: "Zayn", native: "زين", origin: "Arabic", meaning: "Beauty, grace" },
+    { name: "Rayyan", native: "ريّان", origin: "Arabic", meaning: "Watered, luxuriant" },
+    { name: "Amir", native: "أمير", origin: "Arabic", meaning: "Commander, prince" },
+    { name: "Arman", native: "آرمان", origin: "Persian", meaning: "Wish, hope" },
+    { name: "Kian", native: "کیان", origin: "Persian", meaning: "King, foundation, pride" },
+  ].map((item, index) => ({ ...item, id: `b${index}`, liked: item.name === "Zayn" })),
+  girl: [
+    { name: "Layla", native: "ليلى", origin: "Arabic", meaning: "Night" },
+    { name: "Inaya", native: "عناية", origin: "Arabic", meaning: "Care, concern" },
+    { name: "Noor", native: "نور", origin: "Arabic", meaning: "Light" },
+    { name: "Darya", native: "دریا", origin: "Persian", meaning: "Sea, ocean" },
+    { name: "Shirin", native: "شیرین", origin: "Persian", meaning: "Sweet" },
+  ].map((item, index) => ({ ...item, id: `g${index}`, liked: item.name === "Shirin" })),
 };
 
 const generatedNames = [
-  { name: "Elio", type: "boy", meaning: "Sun", origin: "Italian" },
-  { name: "Mira", type: "girl", meaning: "Wonderful", origin: "Latin" },
-  { name: "Rowan", type: "boy", meaning: "Little red one", origin: "Irish" },
-  { name: "Iris", type: "girl", meaning: "Rainbow", origin: "Greek" },
-  { name: "Ari", type: "boy", meaning: "Lion", origin: "Hebrew" },
-  { name: "Maeve", type: "girl", meaning: "She who rules", origin: "Irish" },
+  { name: "Zayd", native: "زيد", type: "boy", meaning: "Growth, abundance", origin: "Arabic" },
+  { name: "Layla", native: "ليلى", type: "girl", meaning: "Night", origin: "Arabic" },
+  { name: "Rayyan", native: "ريّان", type: "boy", meaning: "Watered, luxuriant", origin: "Arabic" },
+  { name: "Inaya", native: "عناية", type: "girl", meaning: "Care, concern", origin: "Arabic" },
+  { name: "Amir", native: "أمير", type: "boy", meaning: "Commander, prince", origin: "Arabic" },
+  { name: "Noor", native: "نور", type: "girl", meaning: "Light", origin: "Arabic" },
+  { name: "Arman", native: "آرمان", type: "boy", meaning: "Wish, hope", origin: "Persian" },
+  { name: "Darya", native: "دریا", type: "girl", meaning: "Sea, ocean", origin: "Persian" },
+  { name: "Kian", native: "کیان", type: "boy", meaning: "King, foundation, pride", origin: "Persian" },
+  { name: "Shirin", native: "شیرین", type: "girl", meaning: "Sweet", origin: "Persian" },
+  { name: "Navid", native: "نوید", type: "boy", meaning: "Good news", origin: "Persian" },
+  { name: "Ava", native: "آوا", type: "girl", meaning: "Voice, sound", origin: "Persian" },
+  { name: "Kamran", native: "کامران", type: "boy", meaning: "Prosperous, fortunate", origin: "Persian" },
+  { name: "Laleh", native: "لاله", type: "girl", meaning: "Tulip", origin: "Persian" },
 ];
 
 function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActive = true }) {
@@ -35,7 +55,11 @@ function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActiv
             onClick={() => onToggle(item.id)}
             aria-pressed={item.liked}
           >
-            <span>{item.name}</span>
+            <span className="name-identity">
+              <b>{item.name}</b>
+              {item.native && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
+              <small>{item.origin}</small>
+            </span>
             <Star size={27} weight={item.liked ? "fill" : "regular"} />
           </button>
         ))}
@@ -62,19 +86,24 @@ function Dialog({ title, children, onClose }) {
 }
 
 function NameLab({ onSave }) {
-  const [theme, setTheme] = useState("bright");
+  const [origin, setOrigin] = useState("either");
   const [resultIndex, setResultIndex] = useState(0);
-  const result = generatedNames[resultIndex];
+  const filteredNames = origin === "either" ? generatedNames : generatedNames.filter((item) => item.origin.toLowerCase() === origin);
+  const result = filteredNames[resultIndex % filteredNames.length];
+  const chooseOrigin = (value) => {
+    setOrigin(value);
+    setResultIndex(0);
+  };
   return (
     <section className="feature-view name-lab-view">
       <div className="feature-copy">
-        <span className="eyebrow"><Sparkle size={18} weight="fill" /> Name Lab</span>
-        <h1>Find a name with a little spark.</h1>
-        <p>Pick a feeling and we’ll suggest a name for either list. The gender stays a surprise.</p>
+        <span className="eyebrow"><Sparkle size={18} weight="fill" /> Arabic &amp; Persian names</span>
+        <h1>Find a name rooted in heritage.</h1>
+        <p>Explore meaningful Arabic and Persian names for both lists. The gender stays a surprise.</p>
         <fieldset className="theme-picker">
-          <legend>What should it feel like?</legend>
-          {["bright", "nature", "classic"].map((item) => (
-            <button key={item} className={theme === item ? "selected" : ""} onClick={() => setTheme(item)}>{item}</button>
+          <legend>Which heritage should we explore?</legend>
+          {[{ value: "either", label: "Surprise me" }, { value: "arabic", label: "Arabic" }, { value: "persian", label: "Persian" }].map((item) => (
+            <button key={item.value} className={origin === item.value ? "selected" : ""} onClick={() => chooseOrigin(item.value)}>{item.label}</button>
           ))}
         </fieldset>
         <button className="primary-button lab-generate" onClick={() => setResultIndex((index) => (index + 1) % generatedNames.length)}>
@@ -82,9 +111,10 @@ function NameLab({ onSave }) {
         </button>
       </div>
       <article className={`generated-card ${result.type}`} aria-live="polite">
-        <span className="generated-label">A {theme} idea</span>
+        <span className="generated-label">{result.origin} · {result.type} name</span>
         <h2>{result.name}</h2>
-        <p>{result.meaning} · {result.origin}</p>
+        <span className="generated-native" dir="rtl" lang={result.origin === "Arabic" ? "ar" : "fa"}>{result.native}</span>
+        <p>{result.meaning}</p>
         <button onClick={() => onSave(result)}><Plus size={20} weight="bold" /> Save to {result.type} list</button>
       </article>
     </section>
@@ -108,11 +138,12 @@ function FamilyPoll({ boyName, girlName }) {
         <p>Votes guide the parents; the final name stays their little secret.</p>
       </div>
       <div className="poll-options">
-        {[{ type: "boy", name: boyName }, { type: "girl", name: girlName }].map((option) => {
+        {[{ type: "boy", item: boyName }, { type: "girl", item: girlName }].map((option) => {
           const percent = Math.round((votes[option.type] / total) * 100);
           return (
             <button key={option.type} className={`poll-option ${option.type} ${choice === option.type ? "chosen" : ""}`} onClick={() => castVote(option.type)} disabled={Boolean(choice)}>
-              <span>{option.type} list finalist</span><strong>{option.name}</strong>
+              <span>{option.type} list finalist</span><strong>{option.item.name}</strong>
+              {option.item.native && <em className="poll-native" dir="rtl" lang={option.item.origin === "Arabic" ? "ar" : "fa"}>{option.item.native}</em>}
               {choice ? <small>{percent}% · {votes[option.type]} votes</small> : <small>Choose this name</small>}
               {choice === option.type && <CheckCircle size={25} weight="fill" />}
             </button>
@@ -132,23 +163,24 @@ export function App() {
   const [dialog, setDialog] = useState(null);
   const [newName, setNewName] = useState("");
   const [newNameType, setNewNameType] = useState("boy");
+  const [newNameOrigin, setNewNameOrigin] = useState("Arabic");
   const [copied, setCopied] = useState(false);
   const [mobileLane, setMobileLane] = useState("boy");
   const liked = useMemo(() => ({ boy: names.boy.filter((item) => item.liked), girl: names.girl.filter((item) => item.liked) }), [names]);
-  const currentBoy = liked.boy[matchIndex % Math.max(liked.boy.length, 1)]?.name || names.boy[0].name;
-  const currentGirl = liked.girl[matchIndex % Math.max(liked.girl.length, 1)]?.name || names.girl[0].name;
+  const currentBoy = liked.boy[matchIndex % Math.max(liked.boy.length, 1)] || names.boy[0];
+  const currentGirl = liked.girl[matchIndex % Math.max(liked.girl.length, 1)] || names.girl[0];
 
   const toggleName = (type, id) => setNames((current) => ({ ...current, [type]: current[type].map((item) => item.id === id ? { ...item, liked: !item.liked } : item) }));
-  const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setDialog("add"); };
+  const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setNewNameOrigin("Arabic"); setDialog("add"); };
   const addName = (event) => {
     event.preventDefault();
     const cleanName = newName.trim();
     if (!cleanName) return;
-    setNames((current) => ({ ...current, [newNameType]: [...current[newNameType], { id: `${newNameType}-${Date.now()}`, name: cleanName, liked: true }] }));
+    setNames((current) => ({ ...current, [newNameType]: [...current[newNameType], { id: `${newNameType}-${Date.now()}`, name: cleanName, native: "", origin: newNameOrigin, meaning: "Family suggestion", liked: true }] }));
     setDialog(null);
   };
   const saveGenerated = (result) => {
-    setNames((current) => current[result.type].some((item) => item.name === result.name) ? current : ({ ...current, [result.type]: [...current[result.type], { id: `${result.type}-${Date.now()}`, name: result.name, liked: true }] }));
+    setNames((current) => current[result.type].some((item) => item.name === result.name) ? current : ({ ...current, [result.type]: [...current[result.type], { ...result, id: `${result.type}-${Date.now()}`, liked: true }] }));
     setActiveView("lists");
     window.scrollTo({ top: 0, behavior: "auto" });
   };
@@ -185,14 +217,14 @@ export function App() {
           <span className="member-status"><UsersThree size={25} weight="bold" /><span className="member-long">8 family members have joined</span><span className="member-short">8 joined</span></span>
         </div>
         <section className="match-layout">
-          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={names.boy.find((item) => item.name === currentBoy)?.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
+          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
             <h1 id="match-heading">Which name<br />feels right today?</h1>
             <div className="match-cards">
-              <button className={`match-card boy ${matchChoice === "boy" ? "chosen" : ""}`} onClick={() => pickMatch("boy")} aria-label={`Choose ${currentBoy}`}><strong>{currentBoy}</strong><Heart size={53} weight={matchChoice === "boy" ? "fill" : "regular"} /></button>
+              <button className={`match-card boy ${matchChoice === "boy" ? "chosen" : ""}`} onClick={() => pickMatch("boy")} aria-label={`Choose ${currentBoy.name}`}><strong>{currentBoy.name}</strong><span className="match-native" dir="rtl" lang={currentBoy.origin === "Arabic" ? "ar" : "fa"}>{currentBoy.native}</span><small>{currentBoy.origin}</small><Heart size={53} weight={matchChoice === "boy" ? "fill" : "regular"} /></button>
               <span className="versus" aria-hidden="true">vs</span>
-              <button className={`match-card girl ${matchChoice === "girl" ? "chosen" : ""}`} onClick={() => pickMatch("girl")} aria-label={`Choose ${currentGirl}`}><strong>{currentGirl}</strong><Heart size={53} weight={matchChoice === "girl" ? "fill" : "regular"} /></button>
+              <button className={`match-card girl ${matchChoice === "girl" ? "chosen" : ""}`} onClick={() => pickMatch("girl")} aria-label={`Choose ${currentGirl.name}`}><strong>{currentGirl.name}</strong><span className="match-native" dir="rtl" lang={currentGirl.origin === "Arabic" ? "ar" : "fa"}>{currentGirl.native}</span><small>{currentGirl.origin}</small><Heart size={53} weight={matchChoice === "girl" ? "fill" : "regular"} /></button>
             </div>
             <p className="pick-note"><ArrowRight size={24} weight="bold" /> Pick a favorite!</p>
             <button className="primary-button start-button" onClick={startMatch}>Start a name match <Sparkle size={23} weight="fill" /></button>
@@ -212,7 +244,7 @@ export function App() {
             </div>
             <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
-          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={names.girl.find((item) => item.name === currentGirl)?.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
+          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
         </section>
       </>}
 
@@ -222,9 +254,12 @@ export function App() {
       {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
         <form className="add-form" onSubmit={addName}>
           <label htmlFor="new-name">Name</label>
-          <input id="new-name" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Type a name" />
+          <input id="new-name" dir="auto" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Type a name in either script" />
           <fieldset><legend>Add it to</legend><div className="type-choice">
             {[["boy", "Boy list"], ["girl", "Girl list"]].map(([value, label]) => <button type="button" key={value} className={newNameType === value ? "selected" : ""} onClick={() => setNewNameType(value)}>{label}</button>)}
+          </div></fieldset>
+          <fieldset><legend>Name origin</legend><div className="type-choice">
+            {["Arabic", "Persian"].map((value) => <button type="button" key={value} className={newNameOrigin === value ? "selected" : ""} onClick={() => setNewNameOrigin(value)}>{value}</button>)}
           </div></fieldset>
           <button className="primary-button" type="submit">Add to our list</button>
         </form>
