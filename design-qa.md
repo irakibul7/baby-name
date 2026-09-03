@@ -1,70 +1,47 @@
-# Nomi Design QA
+# Nomi mobile Safari design QA
 
 ## Evidence
 
-- Source visual truth: `/Users/swoptechnologies/Documents/code/nomi-baby-names/reference-option-2.png`
-- Browser-rendered implementation: `/Users/swoptechnologies/Documents/code/nomi-baby-names/implementation-desktop-final.jpg`
-- Side-by-side comparison: `/Users/swoptechnologies/Documents/code/nomi-baby-names/design-comparison-final.jpg`
-- Mobile implementation: `/Users/swoptechnologies/Documents/code/nomi-baby-names/implementation-mobile-final.jpg`
-- Mobile responsive comparison: `/Users/swoptechnologies/Documents/code/nomi-baby-names/design-comparison-mobile-final.jpg`
-- Viewport and CSS size: 1440 x 1024 px
-- Source pixels: 1487 x 1058 px, normalized to 1440 x 1024 for comparison
-- Implementation pixels: 1440 x 1024 px at device scale factor 1
-- State: initial Our Lists view with Luca and Lena selected
-- Mobile target viewport: 390 x 844 CSS px; in-app browser content capture: 375 x 812 px
+- Source visual truth: `/Users/swoptechnologies/Downloads/F2486AF5-58A6-4DC3-8453-AE5066812B43.png`
+- Fixed short-viewport capture: `qa/mobile-safari-short-fixed.png`
+- Side-by-side comparison: `qa/mobile-safari-before-after.png`
+- Standard mobile capture: `qa/mobile-390x844.jpg`
+- Source pixels: 1125 × 2436 at approximately 3× device density. The app-owned region was cropped from y=110 to y=1710 and normalized to 360 × 512 for the comparison.
+- Short implementation pixels: 360 × 610 at deviceScaleFactor 1.
+- Standard implementation pixels: 390 × 844 at deviceScaleFactor 1.
+- State: authenticated family member, Our Lists, Girl list selected, Inaya swipe card.
 
 ## Full-view comparison evidence
 
-The implementation preserves the source hierarchy: Nomi brand and three-item navigation, private-gender status, equal boy and girl lanes, central head-to-head decision, and paired primary/supporting actions. The edge-only paper collage asset follows the source art direction while keeping the interactive surface readable.
-
-The selected source is a desktop frame, so the mobile comparison evaluates responsive hierarchy and visual-system continuity rather than claiming pixel equivalence. The mobile derivative keeps the same match-first hierarchy, palette, type, iconography, and paper-collage language while replacing simultaneous long lists with an explicit boy/girl list switcher.
+The original screenshot shows the persistent tab bar covering the lower portion of the swipe card while the Pass and Favorite actions are below the visible area. It also shows the Invite Family label wrapping inside a narrow square control. In the revised short-viewport capture, the complete swipe card and both 44px decision controls end 28px above the tab bar, and the invite action is a clean icon-only 44 × 44 control with its existing accessible name preserved.
 
 ## Focused region evidence
 
-The central match region and both name lanes were readable in the full-size 2880 x 1024 comparison, so a separate crop was not required. Type weights, button labels, selected states, icon treatments, spacing, and row density were checked at original resolution.
+The swipe-card/tab-bar region needed focused review because it contained the reported failure. At the short Safari-sized breakpoint, the swipe card ends at 479px, Favorite ends at 531px, and the tab bar starts at 559px. At the standard 390 × 844 viewport, Favorite ends at 698px and the tab bar starts at 793px. The Name Lab save action ends at 714px while its tab bar starts at 793px.
+
+## Findings and comparison history
+
+- P1, fixed: the tab bar visually covered the swipe card and hid the primary decision actions on short Safari viewports. Added a compact short-viewport layout for the card, copy, and action area. Post-fix evidence shows a 28px clear gap between Favorite and the tab bar.
+- P2, fixed: Invite Family wrapped onto two lines inside a 44px-wide button. The short-viewport control now shows only the user-plus icon while retaining `aria-label="Invite Family"`.
+- P2 regression check, passed: the compact rules are limited to mobile viewports no taller than 700px. The 390 × 844 layout keeps the full Invite Family label and the more spacious swipe card.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: Fredoka reproduces the rounded display voice; Nunito provides readable 14-18 px UI copy. Heading scale, weight, wrapping, and button labels align with the source.
-- Spacing and layout rhythm: Three-column proportions, equal side lanes, match-card alignment, row gaps, and vertical rhythm match the source after the second pass.
-- Colors and visual tokens: Ivory, navy, teal, marigold, and cobalt match the source. Color is shared across the experience rather than using a pink/blue gender split.
-- Image quality and asset fidelity: The paper collage is a dedicated generated raster asset with correct texture and edge placement. UI symbols use Phosphor icons rather than CSS drawings or placeholder glyphs.
-- Copy and content: Visible source labels and names are preserved. Supporting views use concise, product-specific copy consistent with the selected concept.
+- Fonts and typography: Fredoka and Nunito, weights, hierarchy, and Arabic/Persian script rendering remain unchanged. Short-view text sizes are reduced only inside the swipe card to prevent clipping.
+- Spacing and layout rhythm: the reported overlap and wrapping are removed; standard-height spacing remains unchanged.
+- Colors and visual tokens: existing ink, teal, yellow, paper, borders, and elevation tokens are unchanged.
+- Image quality and asset fidelity: the existing paper-collage background and icon-library assets remain intact; no replacement assets were introduced.
+- Copy and content: all app copy is preserved. Only the visible short-viewport Invite text is hidden; its accessible name remains available.
 
-## Comparison history
+## Interaction and runtime checks
 
-### Pass 1
-
-- [P2] Main workspace was vertically compressed and started too low relative to the privacy banner.
-- Fix: Reduced the post-banner gap, increased name-row height and spacing, and increased match-card height.
-- Post-fix evidence: `design-comparison-final.jpg` shows the larger interaction region and lane rhythm aligned with the source while staying inside the viewport.
-
-### Final pass
-
-No actionable P0, P1, or P2 differences remain. The generated collage placement differs from the concept artwork by design but preserves the same materials, palette, contrast, and edge-only role.
-
-### Mobile-first pass
-
-- [P2] On narrow phones the original stacked layout made both lists long and allowed fixed navigation to obscure a primary action.
-- [P2] Switching a bottom-navigation view while scrolled retained the previous scroll position.
-- Fixes: Added a mobile-only shortlist switcher, reduced decision-panel height at short-phone breakpoints, reserved safe-area space for bottom navigation, converted dialogs to bottom sheets, and reset scroll position on view changes.
-- Post-fix evidence: `design-comparison-mobile-final.jpg` shows the match and primary CTA above the fold at 390 x 844. A separate 320 x 568 inspection confirmed no horizontal overflow and kept the match CTA fully visible.
-
-## Interaction and responsive verification
-
-- Name Lab navigation, generation, and save-to-list flow passed.
-- Add-name dialog and boy/girl destination selection passed.
-- Family Poll voting and confirmation state passed.
-- Invite Family dialog open/close flow passed.
-- 390 x 844 mobile layout was inspected; navigation remains reachable and the core match stays above the fold.
-- 320 x 568 compact-phone layout was inspected; document width remained exactly 320 px with no horizontal overflow.
-- Mobile boy/girl shortlist switching, add-to-selected-list behavior, tab scroll reset, poll voting, and invite bottom sheet passed.
-- Browser console errors checked: none.
-- Production build and Sites packaging tests passed.
+- Switched Boy/Girl swipe tabs.
+- Switched between Our Lists, Name Lab, and Family Polls.
+- Verified the Name Lab save control and Family Polls create control clear the persistent tab bar.
+- Verified no horizontal overflow and no visible Vite runtime error overlay.
 
 ## Follow-up polish
 
-- [P3] Add Escape-key close and a focus trap to dialogs before production deployment.
-- [P3] Connect generation, invites, and voting to persistent backend services when moving beyond the prototype.
+- No remaining P0, P1, or P2 findings for the reported glitch.
 
 final result: passed
