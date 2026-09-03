@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, Baby, CheckCircle, Copy, Flask, Heart, ListBullets,
   LockKey, MagicWand, Plus, ShareNetwork, Sparkle, Star, UserPlus,
@@ -37,6 +37,34 @@ const generatedNames = [
   { name: "Ava", native: "آوا", type: "girl", meaning: "Voice, sound", origin: "Persian" },
   { name: "Kamran", native: "کامران", type: "boy", meaning: "Prosperous, fortunate", origin: "Persian" },
   { name: "Laleh", native: "لاله", type: "girl", meaning: "Tulip", origin: "Persian" },
+];
+
+const POLL_STORAGE_KEY = "nomi-family-polls-v1";
+const starterPolls = [
+  {
+    id: "starter-boy-poll",
+    type: "boy",
+    question: "Which boy name feels strongest?",
+    createdBy: "Nomi family",
+    votedOptionId: null,
+    options: [
+      { id: "boy-zayn", name: "Zayn", votes: 8 },
+      { id: "boy-arman", name: "Arman", votes: 5 },
+      { id: "boy-kian", name: "Kian", votes: 7 },
+    ],
+  },
+  {
+    id: "starter-girl-poll",
+    type: "girl",
+    question: "Which girl name feels sweetest?",
+    createdBy: "Nomi family",
+    votedOptionId: null,
+    options: [
+      { id: "girl-layla", name: "Layla", votes: 6 },
+      { id: "girl-darya", name: "Darya", votes: 8 },
+      { id: "girl-shirin", name: "Shirin", votes: 10 },
+    ],
+  },
 ];
 
 function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActive = true }) {
@@ -121,36 +149,160 @@ function NameLab({ onSave }) {
   );
 }
 
-function FamilyPoll({ boyName, girlName }) {
-  const [votes, setVotes] = useState({ boy: 12, girl: 15 });
-  const [choice, setChoice] = useState(null);
-  const total = votes.boy + votes.girl;
-  const castVote = (type) => {
-    if (choice) return;
-    setChoice(type);
-    setVotes((current) => ({ ...current, [type]: current[type] + 1 }));
-  };
+function PollCard({ poll, candidates, onVote }) {
+  const totalVotes = poll.options.reduce((sum, option) => sum + option.votes, 0);
+  const hasVoted = Boolean(poll.votedOptionId);
+
   return (
-    <section className="feature-view poll-view">
-      <div className="poll-heading">
-        <span className="eyebrow"><UsersThree size={19} weight="fill" /> Family poll</span>
-        <h1>Help us choose a favorite</h1>
-        <p>Votes guide the parents; the final name stays their little secret.</p>
-      </div>
-      <div className="poll-options">
-        {[{ type: "boy", item: boyName }, { type: "girl", item: girlName }].map((option) => {
-          const percent = Math.round((votes[option.type] / total) * 100);
+    <article className={`community-poll ${poll.type}`}>
+      <header className="community-poll-meta">
+        <span><Baby size={18} weight="duotone" /> {poll.type} names</span>
+        <small>By {poll.createdBy}</small>
+      </header>
+      <h2>{poll.question}</h2>
+      <div className="poll-choices">
+        {poll.options.map((option) => {
+          const percent = totalVotes ? Math.round((option.votes / totalVotes) * 100) : 0;
+          const selected = poll.votedOptionId === option.id;
+          const details = candidates.find((item) => item.name.toLocaleLowerCase() === option.name.toLocaleLowerCase() || item.native === option.name);
           return (
-            <button key={option.type} className={`poll-option ${option.type} ${choice === option.type ? "chosen" : ""}`} onClick={() => castVote(option.type)} disabled={Boolean(choice)}>
-              <span>{option.type} list finalist</span><strong>{option.item.name}</strong>
-              {option.item.native && <em className="poll-native" dir="rtl" lang={option.item.origin === "Arabic" ? "ar" : "fa"}>{option.item.native}</em>}
-              {choice ? <small>{percent}% · {votes[option.type]} votes</small> : <small>Choose this name</small>}
-              {choice === option.type && <CheckCircle size={25} weight="fill" />}
+            <button
+              key={option.id}
+              className={`poll-choice ${selected ? "chosen" : ""}`}
+              onClick={() => onVote(poll.id, option.id)}
+              disabled={hasVoted}
+              aria-pressed={selected}
+            >
+              <span className="poll-choice-copy">
+                <strong dir="auto">{option.name}</strong>
+                {details?.native && details.native !== option.name && <em dir="rtl" lang={details.origin === "Arabic" ? "ar" : "fa"}>{details.native}</em>}
+              </span>
+              <span className="poll-choice-result">{hasVoted ? `${percent}%` : "Vote"}</span>
+              {hasVoted && <i className="poll-progress" style={{ width: `${percent}%` }} aria-hidden="true" />}
+              {selected && <CheckCircle size={22} weight="fill" aria-hidden="true" />}
             </button>
           );
         })}
       </div>
-      <p className="poll-note">{choice ? "Thanks! Your vote is in." : "One vote per family member."}</p>
+      <footer aria-live="polite">{hasVoted ? "Thanks — your vote is in." : `${totalVotes} votes · Choose one name`}</footer>
+    </article>
+  );
+}
+
+function FamilyPoll({ names }) {
+  const [polls, setPolls] = useState(() => {
+    try {
+      const savedPolls = window.localStorage.getItem(POLL_STORAGE_KEY);
+      const parsedPolls = savedPolls ? JSON.parse(savedPolls) : null;
+      return Array.isArray(parsedPolls) ? parsedPolls : starterPolls;
+    } catch {
+      return starterPolls;
+    }
+  });
+  const [isCreating, setIsCreating] = useState(false);
+  const [pollType, setPollType] = useState("boy");
+  const [question, setQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollError, setPollError] = useState("");
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(POLL_STORAGE_KEY, JSON.stringify(polls));
+    } catch {
+      // Polls still work for this session when browser storage is unavailable.
+    }
+  }, [polls]);
+
+  const openCreatePoll = () => {
+    setPollType("boy");
+    setQuestion("");
+    setPollOptions(["", ""]);
+    setPollError("");
+    setIsCreating(true);
+  };
+  const updatePollOption = (index, value) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
+  const castVote = (pollId, optionId) => setPolls((current) => current.map((poll) => {
+    if (poll.id !== pollId || poll.votedOptionId) return poll;
+    return {
+      ...poll,
+      votedOptionId: optionId,
+      options: poll.options.map((option) => option.id === optionId ? { ...option, votes: option.votes + 1 } : option),
+    };
+  }));
+  const createPoll = (event) => {
+    event.preventDefault();
+    const uniqueNames = pollOptions
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .filter((name, index, allNames) => allNames.findIndex((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase()) === index);
+    if (uniqueNames.length < 2) {
+      setPollError("Add at least two different names.");
+      return;
+    }
+    const timestamp = Date.now();
+    setPolls((current) => [{
+      id: `poll-${timestamp}`,
+      type: pollType,
+      question: question.trim() || `Which ${pollType} name is your favorite?`,
+      createdBy: "A family member",
+      votedOptionId: null,
+      options: uniqueNames.map((name, index) => ({ id: `option-${timestamp}-${index}`, name, votes: 0 })),
+    }, ...current]);
+    setIsCreating(false);
+  };
+
+  return (
+    <section className="feature-view poll-view">
+      <div className="poll-heading">
+        <span className="eyebrow"><UsersThree size={19} weight="fill" /> Family polls</span>
+        <h1>Everyone gets a voice.</h1>
+        <p>Create a poll for boy or girl names, suggest your favorites, and let the family vote.</p>
+        <button className="primary-button create-poll-button" onClick={openCreatePoll}><Plus size={21} weight="bold" /> Create a new poll</button>
+      </div>
+
+      <div className="poll-groups">
+        {["boy", "girl"].map((type) => {
+          const typePolls = polls.filter((poll) => poll.type === type);
+          return (
+            <section className={`poll-group ${type}`} key={type} aria-labelledby={`${type}-poll-heading`}>
+              <div className="poll-group-heading">
+                <span className="baby-medallion" aria-hidden="true"><Baby size={31} weight="duotone" /></span>
+                <div><h2 id={`${type}-poll-heading`}>{type === "boy" ? "Boy polls" : "Girl polls"}</h2><p>{typePolls.length} active {typePolls.length === 1 ? "poll" : "polls"}</p></div>
+              </div>
+              <div className="poll-stack">
+                {typePolls.map((poll) => <PollCard key={poll.id} poll={poll} candidates={[...names[type], ...generatedNames.filter((item) => item.type === type)]} onVote={castVote} />)}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {isCreating && <Dialog title="Create a family poll" onClose={() => setIsCreating(false)}>
+        <form className="create-poll-form" onSubmit={createPoll}>
+          <p className="dialog-copy">Choose one list, then suggest 2–5 names for everyone to vote on.</p>
+          <fieldset><legend>This poll is for</legend><div className="poll-type-choice">
+            {[{ value: "boy", label: "Boy names" }, { value: "girl", label: "Girl names" }].map((item) => (
+              <button type="button" key={item.value} className={pollType === item.value ? "selected" : ""} onClick={() => { setPollType(item.value); setPollError(""); }}>{item.label}</button>
+            ))}
+          </div></fieldset>
+          <label htmlFor="poll-question">Question <small>optional</small></label>
+          <input id="poll-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={`Which ${pollType} name is your favorite?`} />
+          <fieldset className="poll-name-fields"><legend>Name suggestions</legend>
+            <datalist id={`${pollType}-poll-suggestions`}>
+              {names[pollType].flatMap((item) => [<option key={`${item.id}-latin`} value={item.name}>{item.native}</option>, <option key={`${item.id}-native`} value={item.native}>{item.name}</option>])}
+            </datalist>
+            {pollOptions.map((value, index) => (
+              <div className="poll-option-input" key={index}>
+                <input dir="auto" list={`${pollType}-poll-suggestions`} value={value} onChange={(event) => { updatePollOption(index, event.target.value); setPollError(""); }} aria-label={`Name suggestion ${index + 1}`} placeholder={`Name ${index + 1}`} />
+                {pollOptions.length > 2 && <button type="button" onClick={() => setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove name ${index + 1}`}><X size={18} weight="bold" /></button>}
+              </div>
+            ))}
+            {pollOptions.length < 5 && <button className="add-poll-option" type="button" onClick={() => setPollOptions((current) => [...current, ""])}><Plus size={18} weight="bold" /> Add another name</button>}
+          </fieldset>
+          {pollError && <p className="poll-error" role="alert">{pollError}</p>}
+          <button className="primary-button publish-poll-button" type="submit">Publish poll</button>
+        </form>
+      </Dialog>}
     </section>
   );
 }
@@ -194,7 +346,7 @@ export function App() {
   const navItems = [
     { id: "lists", label: "Our Lists", icon: ListBullets },
     { id: "lab", label: "Name Lab", icon: Flask },
-    { id: "poll", label: "Family Poll", icon: UsersThree },
+    { id: "poll", label: "Family Polls", icon: UsersThree },
   ];
 
   return (
@@ -249,7 +401,7 @@ export function App() {
       </>}
 
       {activeView === "lab" && <NameLab onSave={saveGenerated} />}
-      {activeView === "poll" && <FamilyPoll boyName={currentBoy} girlName={currentGirl} />}
+      {activeView === "poll" && <FamilyPoll names={names} />}
 
       {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
         <form className="add-form" onSubmit={addName}>
