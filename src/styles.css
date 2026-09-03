@@ -135,37 +135,56 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 
 .match-stage { text-align: center; padding-top: 52px; }
 .accent-rays { color: var(--teal); height: 25px; transform: rotate(-14deg); }
-.match-stage h1 { margin: 9px 0 32px; font-size: clamp(37px, 4vw, 50px); line-height: 1.05; letter-spacing: -1px; }
-.match-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; position: relative; }
-.match-card {
-  min-height: 270px; border: 1px solid rgba(7, 27, 67, 0.08); border-radius: 15px; background: rgba(255, 254, 250, 0.96);
-  box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px;
-  cursor: pointer; transition: transform 180ms ease, border 180ms ease;
+.match-stage h1 { margin: 9px 0 7px; font-size: clamp(37px, 4vw, 50px); line-height: 1.05; letter-spacing: -1px; }
+.swipe-intro { margin: 0 0 17px; color: #62708a; font-weight: 700; }
+.swipe-type-switcher {
+  width: min(400px, 100%); margin: 0 auto 16px; padding: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+  border: 1px solid rgba(7, 27, 67, 0.1); border-radius: 14px; background: rgba(242, 235, 219, 0.82);
 }
-.match-card:hover { transform: translateY(-5px) rotate(-1deg); }
-.match-card.girl:hover { transform: translateY(-5px) rotate(1deg); }
-.match-card strong { font-family: "Fredoka", sans-serif; font-size: clamp(42px, 4vw, 58px); font-weight: 600; }
-.match-native { font-family: Arial, sans-serif; font-size: 28px; line-height: 1; }
-.match-card small { padding: 4px 9px; border-radius: 999px; background: rgba(7, 27, 67, 0.06); color: #68748b; font-size: 9px; font-weight: 900; letter-spacing: 0.7px; text-transform: uppercase; }
-.match-card > svg { margin-top: 8px; }
-.match-card.boy svg { color: var(--teal); }
-.match-card.girl svg { color: var(--yellow-dark); }
-.match-card.chosen { border: 4px solid currentColor; transform: translateY(-8px); }
-.match-card.boy.chosen { color: var(--teal); }
-.match-card.girl.chosen { color: var(--yellow-dark); }
-.versus {
-  width: 66px; height: 66px; border-radius: 50%; background: var(--blue); color: white; display: grid; place-items: center;
-  font-family: "Fredoka", sans-serif; font-size: 25px; position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  box-shadow: 0 5px 0 #164bb5, 0 9px 20px rgba(7, 27, 67, 0.18);
+.swipe-type-switcher button {
+  min-height: 43px; border: 0; border-radius: 10px; background: transparent; color: #66728a;
+  display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 900; cursor: pointer;
 }
-.pick-note { margin: 18px 0; font-family: "Fredoka", sans-serif; font-size: 20px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; transform: rotate(-2deg); }
-.pick-note svg { transform: rotate(140deg); }
-.start-button { width: 86%; background: var(--blue); color: #fff; box-shadow: 0 5px 0 #154ab6, 0 9px 20px rgba(7, 27, 67, 0.16); font-size: 20px; }
+.swipe-type-switcher button span { min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: rgba(7, 27, 67, 0.08); font-size: 11px; }
+.swipe-type-switcher button.active { background: white; color: var(--ink); box-shadow: 0 3px 10px rgba(7, 27, 67, 0.08); }
+.swipe-type-switcher button:first-child.active { color: var(--teal-dark); }
+.swipe-type-switcher button:last-child.active { color: #9e6b00; }
+.swipe-deck { width: min(400px, 100%); height: 345px; margin: 0 auto; position: relative; isolation: isolate; }
+.swipe-deck::before {
+  content: ""; position: absolute; z-index: -1; inset: 10px 13px -7px; border: 1px solid rgba(7, 27, 67, 0.1); border-radius: 24px;
+  background: rgba(255, 255, 255, 0.66); box-shadow: 0 6px 0 rgba(7, 27, 67, 0.05); transform: rotate(2deg);
+}
+.swipe-card {
+  position: absolute; inset: 0; padding: 21px; border: 3px solid var(--teal); border-radius: 23px; background: rgba(255, 254, 250, 0.98);
+  box-shadow: 0 9px 0 rgba(7, 27, 67, 0.06), 0 18px 42px rgba(7, 27, 67, 0.13); display: flex; flex-direction: column;
+  cursor: grab; touch-action: pan-y; user-select: none; will-change: transform; transition: transform 250ms ease, opacity 220ms ease;
+}
+.swipe-card.girl { border-color: var(--yellow); }
+.swipe-card.dragging { cursor: grabbing; transition: none; }
+.swipe-card-topline { display: flex; justify-content: space-between; gap: 15px; color: #66728a; font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
+.swipe-card-topline small { font-size: inherit; font-weight: inherit; }
+.swipe-card-copy { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.swipe-card-copy strong { font-family: "Fredoka", sans-serif; font-size: clamp(56px, 6vw, 73px); font-weight: 600; line-height: 1; }
+.swipe-native { margin-top: 10px; font-family: Arial, sans-serif; font-size: 39px; line-height: 1.1; }
+.swipe-card-copy i { margin-top: 25px; color: #7a8599; font-size: 9px; font-style: normal; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; }
+.swipe-card-copy p { margin: 4px 0 0; font-family: "Fredoka", sans-serif; font-size: 23px; font-weight: 500; }
+.swipe-card-hint { color: #7b8699; font-size: 11px; font-weight: 700; }
+.swipe-stamp { position: absolute; z-index: 2; top: 65px; padding: 5px 10px; border: 4px solid currentColor; border-radius: 8px; font-family: "Fredoka", sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; pointer-events: none; }
+.swipe-stamp.pass { left: 21px; color: #d13d4a; transform: rotate(-12deg); }
+.swipe-stamp.favorite { right: 16px; color: var(--teal); transform: rotate(11deg); }
+.swipe-actions { margin: 20px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.swipe-action {
+  min-width: 125px; min-height: 54px; padding: 0 18px; border-radius: 999px; background: white; display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-weight: 900; cursor: pointer; box-shadow: 0 4px 0 rgba(7, 27, 67, 0.08), 0 8px 18px rgba(7, 27, 67, 0.08);
+}
+.swipe-action:disabled { opacity: 0.55; cursor: default; }
+.swipe-action.pass { border: 2px solid #d13d4a; color: #b92d3b; }
+.swipe-action.favorite { border: 2px solid var(--teal); color: var(--teal-dark); }
+.swipe-help { margin: 14px 0 0; display: flex; justify-content: center; gap: 24px; color: #69758c; font-size: 11px; font-weight: 800; }
 .secondary-button {
   margin-top: 16px; width: 86%; min-height: 48px; border: 2px solid var(--teal); border-radius: 9px; background: rgba(255, 253, 247, 0.76);
   color: var(--teal-dark); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
 }
-.mobile-list-switcher { display: none; }
 
 .feature-view {
   width: min(1120px, 100%); min-height: 650px; margin: 72px auto 0; padding: clamp(35px, 6vw, 78px); border-radius: 28px;
@@ -268,7 +287,6 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .topbar nav span { display: none; }
   .match-layout { grid-template-columns: minmax(210px, 1fr) minmax(360px, 1.45fr) minmax(210px, 1fr); gap: 28px; }
   .match-stage { padding-top: 36px; }
-  .match-card { min-height: 230px; }
   .name-lab-view { gap: 42px; }
 }
 
@@ -311,43 +329,19 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .match-stage { order: -1; padding-top: 0; }
   .accent-rays { height: 19px; }
   .accent-rays svg { width: 25px; }
-  .match-stage h1 { font-size: 34px; line-height: 1.02; margin: 6px 0 20px; }
-  .match-cards { gap: 16px; }
-  .match-card { min-height: 154px; border-radius: 14px; gap: 14px; }
-  .match-card strong { font-size: 35px; }
-  .match-card svg { width: 40px; height: 40px; }
-  .versus { width: 50px; height: 50px; font-size: 19px; box-shadow: 0 4px 0 #164bb5, 0 7px 16px rgba(7, 27, 67, 0.17); }
-  .pick-note { margin: 13px 0; font-size: 16px; }
-  .start-button, .secondary-button { width: 100%; }
-  .start-button { min-height: 54px; font-size: 17px; }
+  .match-stage h1 { font-size: 34px; line-height: 1.02; margin: 6px 0 5px; }
+  .swipe-intro { margin-bottom: 13px; font-size: 14px; }
+  .swipe-type-switcher { margin-bottom: 13px; }
+  .swipe-deck { height: 320px; }
+  .swipe-card { padding: 18px; border-radius: 20px; }
+  .swipe-card-copy strong { font-size: 57px; }
+  .swipe-native { font-size: 35px; }
+  .swipe-card-copy i { margin-top: 20px; }
+  .swipe-actions { margin-top: 17px; gap: 13px; }
+  .swipe-action { min-width: 0; width: min(155px, 45%); min-height: 53px; }
+  .swipe-help { gap: 15px; }
+  .secondary-button { width: 100%; }
   .secondary-button { min-height: 52px; margin-top: 10px; }
-  .mobile-list-switcher {
-    margin: 24px 0 10px;
-    padding: 5px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
-    border: 1px solid rgba(7, 27, 67, 0.1);
-    border-radius: 14px;
-    background: rgba(242, 235, 219, 0.82);
-  }
-  .mobile-list-switcher button {
-    min-height: 47px;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: #66728a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 900;
-    cursor: pointer;
-  }
-  .mobile-list-switcher button span { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: rgba(7, 27, 67, 0.08); font-size: 12px; }
-  .mobile-list-switcher button.active { background: white; color: var(--ink); box-shadow: 0 3px 10px rgba(7, 27, 67, 0.08); }
-  .mobile-list-switcher button:first-child.active { color: var(--teal-dark); }
-  .mobile-list-switcher button:last-child.active { color: #ae7600; }
   .name-lane { max-width: 520px; width: 100%; margin: 0 auto; }
   .name-lane.mobile-inactive { display: none; }
   .lane-heading { flex-direction: row; justify-content: center; gap: 11px; }
@@ -392,7 +386,8 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 @media (max-width: 460px) {
   .privacy-banner i { display: block; height: 21px; }
   .privacy-banner { flex-direction: row; gap: 8px; }
-  .match-card strong { font-size: 33px; }
+  .swipe-action { flex: 1; width: auto; padding: 0 12px; }
+  .swipe-help { gap: 9px; font-size: 9px; }
   .theme-picker button { padding: 8px 12px; }
   .invite-link { align-items: stretch; flex-direction: column; }
   .invite-link button { min-height: 44px; justify-content: center; }
@@ -408,14 +403,17 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .privacy-banner svg { width: 15px; }
   .privacy-banner i { height: 18px; }
   .accent-rays { display: none; }
-  .match-stage h1 { font-size: 29px; margin: 3px 0 12px; }
-  .match-card { min-height: 124px; gap: 8px; }
-  .match-card strong { font-size: 30px; }
-  .match-card svg { width: 34px; height: 34px; }
-  .versus { width: 45px; height: 45px; font-size: 17px; }
-  .pick-note { margin: 8px 0; font-size: 14px; }
-  .start-button { min-height: 48px; font-size: 16px; }
-  .mobile-list-switcher { margin-top: 17px; }
+  .match-stage h1 { font-size: 29px; margin: 3px 0 4px; }
+  .swipe-intro { display: none; }
+  .swipe-type-switcher { margin-top: 8px; }
+  .swipe-deck { height: 270px; }
+  .swipe-card-copy strong { font-size: 47px; }
+  .swipe-native { margin-top: 5px; font-size: 30px; }
+  .swipe-card-copy i { margin-top: 13px; }
+  .swipe-card-copy p { font-size: 19px; }
+  .swipe-actions { margin-top: 13px; }
+  .swipe-action { min-height: 48px; }
+  .swipe-help { margin-top: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ArrowRight, Baby, CheckCircle, Copy, Flask, Heart, ListBullets,
+  Baby, CheckCircle, Copy, Flask, Heart, ListBullets,
   LockKey, MagicWand, Plus, ShareNetwork, Sparkle, Star, UserPlus,
   UsersThree, X,
 } from "@phosphor-icons/react";
@@ -310,17 +310,19 @@ function FamilyPoll({ names }) {
 export function App() {
   const [activeView, setActiveView] = useState("lists");
   const [names, setNames] = useState(starterNames);
-  const [matchIndex, setMatchIndex] = useState(0);
-  const [matchChoice, setMatchChoice] = useState(null);
+  const [swipeIndexes, setSwipeIndexes] = useState({ boy: 0, girl: 0 });
+  const [dragStart, setDragStart] = useState(null);
+  const [dragX, setDragX] = useState(0);
+  const [swipeDirection, setSwipeDirection] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [newName, setNewName] = useState("");
   const [newNameType, setNewNameType] = useState("boy");
   const [newNameOrigin, setNewNameOrigin] = useState("Arabic");
   const [copied, setCopied] = useState(false);
   const [mobileLane, setMobileLane] = useState("boy");
-  const liked = useMemo(() => ({ boy: names.boy.filter((item) => item.liked), girl: names.girl.filter((item) => item.liked) }), [names]);
-  const currentBoy = liked.boy[matchIndex % Math.max(liked.boy.length, 1)] || names.boy[0];
-  const currentGirl = liked.girl[matchIndex % Math.max(liked.girl.length, 1)] || names.girl[0];
+  const currentBoy = names.boy[swipeIndexes.boy % names.boy.length];
+  const currentGirl = names.girl[swipeIndexes.girl % names.girl.length];
+  const currentSwipeName = mobileLane === "boy" ? currentBoy : currentGirl;
 
   const toggleName = (type, id) => setNames((current) => ({ ...current, [type]: current[type].map((item) => item.id === id ? { ...item, liked: !item.liked } : item) }));
   const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setNewNameOrigin("Arabic"); setDialog("add"); };
@@ -336,8 +338,40 @@ export function App() {
     setActiveView("lists");
     window.scrollTo({ top: 0, behavior: "auto" });
   };
-  const startMatch = () => { setMatchChoice(null); setMatchIndex((index) => index + 1); };
-  const pickMatch = (type) => { setMatchChoice(type); window.setTimeout(startMatch, 750); };
+  const performSwipe = (direction) => {
+    if (swipeDirection) return;
+    const type = mobileLane;
+    const targetId = currentSwipeName.id;
+    setNames((current) => ({
+      ...current,
+      [type]: current[type].map((item) => item.id === targetId ? { ...item, liked: direction === "right" } : item),
+    }));
+    setSwipeDirection(direction);
+    setDragX(direction === "right" ? 520 : -520);
+    window.setTimeout(() => {
+      setSwipeIndexes((current) => ({ ...current, [type]: current[type] + 1 }));
+      setDragX(0);
+      setSwipeDirection(null);
+    }, 260);
+  };
+  const beginSwipe = (event) => {
+    if (swipeDirection || (event.button !== undefined && event.button !== 0)) return;
+    setDragStart(event.clientX);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveSwipe = (event) => {
+    if (dragStart === null || swipeDirection) return;
+    setDragX(Math.max(-170, Math.min(170, event.clientX - dragStart)));
+  };
+  const endSwipe = (event) => {
+    if (dragStart === null || swipeDirection) return;
+    const distance = event.clientX - dragStart;
+    setDragStart(null);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (Math.abs(distance) >= 70) performSwipe(distance > 0 ? "right" : "left");
+    else setDragX(0);
+  };
+  const cancelSwipe = () => { setDragStart(null); setDragX(0); };
   const copyInvite = async () => { await navigator.clipboard?.writeText("https://nomi.family/join/8H2K"); setCopied(true); };
   const changeView = (view) => {
     setActiveView(view);
@@ -372,28 +406,48 @@ export function App() {
           <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
-            <h1 id="match-heading">Which name<br />feels right today?</h1>
-            <div className="match-cards">
-              <button className={`match-card boy ${matchChoice === "boy" ? "chosen" : ""}`} onClick={() => pickMatch("boy")} aria-label={`Choose ${currentBoy.name}`}><strong>{currentBoy.name}</strong><span className="match-native" dir="rtl" lang={currentBoy.origin === "Arabic" ? "ar" : "fa"}>{currentBoy.native}</span><small>{currentBoy.origin}</small><Heart size={53} weight={matchChoice === "boy" ? "fill" : "regular"} /></button>
-              <span className="versus" aria-hidden="true">vs</span>
-              <button className={`match-card girl ${matchChoice === "girl" ? "chosen" : ""}`} onClick={() => pickMatch("girl")} aria-label={`Choose ${currentGirl.name}`}><strong>{currentGirl.name}</strong><span className="match-native" dir="rtl" lang={currentGirl.origin === "Arabic" ? "ar" : "fa"}>{currentGirl.native}</span><small>{currentGirl.origin}</small><Heart size={53} weight={matchChoice === "girl" ? "fill" : "regular"} /></button>
-            </div>
-            <p className="pick-note"><ArrowRight size={24} weight="bold" /> Pick a favorite!</p>
-            <button className="primary-button start-button" onClick={startMatch}>Start a name match <Sparkle size={23} weight="fill" /></button>
-            <div className="mobile-list-switcher" role="tablist" aria-label="Choose a shortlist">
+            <h1 id="match-heading">Swipe your way<br />to a favorite</h1>
+            <p className="swipe-intro">One meaningful name at a time.</p>
+            <div className="swipe-type-switcher" role="tablist" aria-label="Choose names to review">
               {[{ type: "boy", label: "Boy list", count: names.boy.length }, { type: "girl", label: "Girl list", count: names.girl.length }].map((lane) => (
                 <button
                   key={lane.type}
                   role="tab"
                   aria-selected={mobileLane === lane.type}
-                  aria-controls={`${lane.type}-list-panel`}
                   className={mobileLane === lane.type ? "active" : ""}
-                  onClick={() => setMobileLane(lane.type)}
+                  onClick={() => { if (!swipeDirection) { setMobileLane(lane.type); setDragStart(null); setDragX(0); } }}
                 >
                   {lane.label}<span>{lane.count}</span>
                 </button>
               ))}
             </div>
+            <div className="swipe-deck">
+              <article
+                className={`swipe-card ${mobileLane} ${dragStart !== null ? "dragging" : ""}`}
+                style={{ transform: `translateX(${dragX}px) rotate(${dragX / 18}deg)`, opacity: Math.max(0.38, 1 - Math.abs(dragX) / 520) }}
+                onPointerDown={beginSwipe}
+                onPointerMove={moveSwipe}
+                onPointerUp={endSwipe}
+                onPointerCancel={cancelSwipe}
+                aria-live="polite"
+              >
+                <span className="swipe-stamp pass" style={{ opacity: Math.max(0, -dragX / 90) }}>Pass</span>
+                <span className="swipe-stamp favorite" style={{ opacity: Math.max(0, dragX / 90) }}>Favorite</span>
+                <div className="swipe-card-topline"><span>{currentSwipeName.origin} · {mobileLane} name</span><small>{(swipeIndexes[mobileLane] % names[mobileLane].length) + 1} of {names[mobileLane].length}</small></div>
+                <div className="swipe-card-copy">
+                  <strong>{currentSwipeName.name}</strong>
+                  {currentSwipeName.native && <span className="swipe-native" dir="rtl" lang={currentSwipeName.origin === "Arabic" ? "ar" : "fa"}>{currentSwipeName.native}</span>}
+                  <i>Meaning</i>
+                  <p>{currentSwipeName.meaning}</p>
+                </div>
+                <span className="swipe-card-hint">Drag the card left or right</span>
+              </article>
+            </div>
+            <div className="swipe-actions" aria-label="Choose this name">
+              <button className="swipe-action pass" onClick={() => performSwipe("left")} disabled={Boolean(swipeDirection)}><X size={28} weight="bold" /><span>Pass</span></button>
+              <button className="swipe-action favorite" onClick={() => performSwipe("right")} disabled={Boolean(swipeDirection)}><Heart size={29} weight="fill" /><span>Favorite</span></button>
+            </div>
+            <p className="swipe-help"><span>← Swipe left to pass</span><span>Swipe right to favorite →</span></p>
             <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
           <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
