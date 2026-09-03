@@ -121,6 +121,25 @@ export async function createFamilyName({ familyId, name, native = "", origin, me
   return data;
 }
 
+export async function updateFamilyName({ id, name, native = "", origin, meaning, type }) {
+  const client = requireSupabase();
+  const { error } = await client.rpc("update_family_name", {
+    p_name_entry_id: id,
+    p_name: name,
+    p_script: native,
+    p_origin: origin,
+    p_meaning: meaning,
+    p_gender_list: type,
+  });
+  if (error) throw error;
+}
+
+export async function deleteFamilyName(nameEntryId) {
+  const client = requireSupabase();
+  const { error } = await client.rpc("delete_family_name", { p_name_entry_id: nameEntryId });
+  if (error) throw error;
+}
+
 export async function setFamilyNameReaction(nameEntryId, status) {
   const client = requireSupabase();
   const { error } = await client.rpc("set_name_reaction", {

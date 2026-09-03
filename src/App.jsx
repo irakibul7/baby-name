@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   Baby, CheckCircle, Copy, Flask, Heart, ListBullets,
-  LockKey, MagicWand, Plus, ShareNetwork, Sparkle, Star, UserPlus,
-  UsersThree, X,
+  LockKey, MagicWand, MagnifyingGlass, PencilSimple, Plus, ShareNetwork,
+  Sparkle, Star, Trash, UserPlus, UsersThree, X,
 } from "@phosphor-icons/react";
 import {
   castFamilyPollVote,
   createFamilyName,
   createFamilyPoll,
+  deleteFamilyName,
   ensureAnonymousUser,
   familyCode,
   fetchFamilyMemberCount,
@@ -18,6 +19,7 @@ import {
   setFamilyNameReaction,
   subscribeToFamilyNames,
   subscribeToFamilyPolls,
+  updateFamilyName,
 } from "./lib/supabase";
 
 const EMPTY_NAMES = { boy: [], girl: [] };
@@ -37,11 +39,26 @@ const generatedNames = [
   { name: "Ava", native: "آوا", type: "girl", meaning: "Voice, sound", origin: "Persian" },
   { name: "Kamran", native: "کامران", type: "boy", meaning: "Prosperous, fortunate", origin: "Persian" },
   { name: "Laleh", native: "لاله", type: "girl", meaning: "Tulip", origin: "Persian" },
+  { name: "Kerem", native: "کرم", type: "boy", meaning: "Generosity, nobility", origin: "Turkish" },
+  { name: "Baran", native: "باران", type: "boy", meaning: "Rain", origin: "Kurdish" },
+  { name: "Ayaan", native: "ایان", type: "boy", meaning: "Gift, blessing", origin: "Urdu" },
+  { name: "Aylin", native: "آیلین", type: "girl", meaning: "Halo around the moon", origin: "Turkish" },
+  { name: "Rojin", native: "ڕۆژین", type: "girl", meaning: "Bright as the day", origin: "Kurdish" },
+  { name: "Zoya", native: "زویا", type: "girl", meaning: "Life, loving", origin: "Urdu" },
 ];
+
+const originOptions = ["Arabic", "Persian", "Turkish", "Urdu", "Kurdish"];
+
+function firstUnreviewedIndexes(names) {
+  return {
+    boy: Math.max(0, names.boy.findIndex((item) => !item.currentStatus)),
+    girl: Math.max(0, names.girl.findIndex((item) => !item.currentStatus)),
+  };
+}
 
 const USER_NAME_STORAGE_KEY = "nomi-display-name-v1";
 
-function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActive = true }) {
+function NameLane({ type, title, names, activeId, memberId, onToggle, onAdd, onEdit, onDelete, isMobileActive = true }) {
   return (
     <section className={`name-lane ${type} ${isMobileActive ? "" : "mobile-inactive"}`} aria-labelledby={`${type}-heading`} id={`${type}-list-panel`}>
       <div className="lane-heading">
@@ -50,21 +67,25 @@ function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActiv
       </div>
       <div className="lane-rule" aria-hidden="true"><span /><Star size={18} weight="fill" /><span /></div>
       <div className="name-list">
-        {names.map((item) => (
-          <button
-            className={`name-row ${activeId === item.id ? "active" : ""}`}
-            key={item.id}
-            onClick={() => onToggle(item.id)}
-            aria-pressed={item.liked}
-          >
-            <span className="name-identity">
-              <b>{item.name}</b>
-              {item.native && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
-              <small>{item.origin}</small>
-            </span>
-            <span className="star-tap-target" aria-hidden="true"><Star size={27} weight={item.liked ? "fill" : "regular"} /></span>
-          </button>
-        ))}
+        {names.map((item) => {
+          const canManage = item.isCustom && item.createdBy === memberId;
+          return (
+            <article className={`name-row ${activeId === item.id ? "active" : ""}`} key={item.id}>
+              <button className="name-row-main" onClick={() => onToggle(item.id)} aria-pressed={item.liked}>
+                <span className="name-identity">
+                  <b>{item.name}</b>
+                  {item.native && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
+                  <small>{item.origin}</small>
+                </span>
+                <span className="star-tap-target" aria-hidden="true"><Star size={27} weight={item.liked ? "fill" : "regular"} /></span>
+              </button>
+              {canManage ? <div className="name-row-actions">
+                <button onClick={() => onEdit(item, type)} aria-label={`Edit ${item.name}`}><PencilSimple size={18} weight="bold" /></button>
+                <button onClick={() => onDelete(item, type)} aria-label={`Delete ${item.name}`}><Trash size={18} weight="bold" /></button>
+              </div> : null}
+            </article>
+          );
+        })}
       </div>
       <button className="add-lane-button" onClick={() => onAdd(type)}>
         <Plus size={24} weight="bold" /> Add your own
@@ -87,10 +108,33 @@ function Dialog({ title, children, onClose }) {
   );
 }
 
+function NameSearch({ names, query, onQueryChange, onSelect }) {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const results = normalizedQuery ? ["boy", "girl"].flatMap((type) => names[type]
+    .filter((item) => [item.name, item.native, item.origin, item.meaning].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery)))
+    .map((item) => ({ ...item, type }))).slice(0, 8) : [];
+
+  return (
+    <section className="name-search" aria-label="Find a name">
+      <label htmlFor="name-search"><MagnifyingGlass size={21} weight="bold" /><span>Find a name</span></label>
+      <input id="name-search" type="search" dir="auto" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search name, meaning, or origin" />
+      {normalizedQuery ? <div className="name-search-results" aria-live="polite">
+        {results.length ? results.map((item) => (
+          <button key={`${item.type}-${item.id}`} onClick={() => onSelect(item)}>
+            <span><strong dir="auto">{item.name}</strong>{item.native ? <em dir="rtl">{item.native}</em> : null}</span>
+            <small>{item.type} · {item.origin}</small>
+            <p>{item.meaning}</p>
+          </button>
+        )) : <p className="no-search-results">No matching family names yet.</p>}
+      </div> : null}
+    </section>
+  );
+}
+
 function NameLab({ onSave }) {
   const [origin, setOrigin] = useState("either");
   const [resultIndex, setResultIndex] = useState(0);
-  const filteredNames = origin === "either" ? generatedNames : generatedNames.filter((item) => item.origin.toLowerCase() === origin);
+  const filteredNames = origin === "either" ? generatedNames : generatedNames.filter((item) => item.origin === origin);
   const result = filteredNames[resultIndex % filteredNames.length];
   const chooseOrigin = (value) => {
     setOrigin(value);
@@ -99,13 +143,13 @@ function NameLab({ onSave }) {
   return (
     <section className="feature-view name-lab-view">
       <div className="feature-copy">
-        <span className="eyebrow"><Sparkle size={18} weight="fill" /> Arabic &amp; Persian names</span>
+        <span className="eyebrow"><Sparkle size={18} weight="fill" /> Meaningful heritage names</span>
         <h1>Find a name rooted in heritage.</h1>
-        <p>Explore meaningful Arabic and Persian names for both lists. The gender stays a surprise.</p>
+        <p>Explore meaningful names across five heritages for both lists. The gender stays a surprise.</p>
         <fieldset className="theme-picker">
           <legend>Which heritage should we explore?</legend>
-          {[{ value: "either", label: "Surprise me" }, { value: "arabic", label: "Arabic" }, { value: "persian", label: "Persian" }].map((item) => (
-            <button key={item.value} className={origin === item.value ? "selected" : ""} onClick={() => chooseOrigin(item.value)}>{item.label}</button>
+          {["Surprise me", ...originOptions].map((label) => (
+            <button key={label} className={origin === (label === "Surprise me" ? "either" : label) ? "selected" : ""} onClick={() => chooseOrigin(label === "Surprise me" ? "either" : label)}>{label}</button>
           ))}
         </fieldset>
         <button className="primary-button lab-generate" onClick={() => setResultIndex((index) => (index + 1) % generatedNames.length)}>
@@ -158,7 +202,7 @@ function PollCard({ poll, candidates, onVote, disabled = false }) {
           );
         })}
       </div>
-      <footer aria-live="polite">{hasVoted ? "Thanks — your vote is in." : `${totalVotes} votes · Choose one name`}</footer>
+      <footer aria-live="polite">{hasVoted ? "Thanks — your vote is in." : `${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} · Choose one name`}</footer>
     </article>
   );
 }
@@ -336,8 +380,13 @@ export function App() {
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [newName, setNewName] = useState("");
+  const [newNameNative, setNewNameNative] = useState("");
+  const [newNameMeaning, setNewNameMeaning] = useState("");
   const [newNameType, setNewNameType] = useState("boy");
   const [newNameOrigin, setNewNameOrigin] = useState("Arabic");
+  const [selectedCustomName, setSelectedCustomName] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: "", native: "", meaning: "", origin: "Arabic", type: "boy" });
+  const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
   const [mobileLane, setMobileLane] = useState("boy");
   const currentBoy = names.boy.length ? names.boy[swipeIndexes.boy % names.boy.length] : null;
@@ -361,6 +410,7 @@ export function App() {
         ]);
         if (cancelled) return;
         setNames(familyNames);
+        setSwipeIndexes(firstUnreviewedIndexes(familyNames));
         setFamilySession({
           status: "ready",
           userId: user.id,
@@ -424,14 +474,28 @@ export function App() {
       setFamilyActionError(error.message || "Could not save that favorite.");
     }
   };
-  const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setNewNameOrigin("Arabic"); setDialog("add"); };
+  const openAddDialog = (type) => {
+    setNewNameType(type);
+    setNewName("");
+    setNewNameNative("");
+    setNewNameMeaning("");
+    setNewNameOrigin("Arabic");
+    setDialog("add");
+  };
   const addName = async (event) => {
     event.preventDefault();
     const cleanName = newName.trim();
     if (!cleanName || !familySession.familyId) return;
     try {
       setSavingName(true);
-      const nameId = await createFamilyName({ familyId: familySession.familyId, name: cleanName, origin: newNameOrigin, meaning: "Family suggestion", type: newNameType });
+      const nameId = await createFamilyName({
+        familyId: familySession.familyId,
+        name: cleanName,
+        native: newNameNative.trim(),
+        origin: newNameOrigin,
+        meaning: newNameMeaning.trim() || "Family suggestion",
+        type: newNameType,
+      });
       await setFamilyNameReaction(nameId, "favorite");
       await refreshNames();
       setDialog(null);
@@ -455,6 +519,53 @@ export function App() {
     } catch (error) {
       setFamilyActionError(error.message || "Could not save that name.");
     }
+  };
+  const openEditDialog = (item, type) => {
+    setSelectedCustomName(item);
+    setEditDraft({ name: item.name, native: item.native, meaning: item.meaning, origin: item.origin, type });
+    setDialog("edit");
+  };
+  const saveEditedName = async (event) => {
+    event.preventDefault();
+    if (!selectedCustomName || !editDraft.name.trim()) return;
+    try {
+      setSavingName(true);
+      await updateFamilyName({ id: selectedCustomName.id, ...editDraft });
+      await refreshNames();
+      setDialog(null);
+      setSelectedCustomName(null);
+      setFamilyActionError("");
+    } catch (error) {
+      setFamilyActionError(error.message || "Could not update that name.");
+    } finally {
+      setSavingName(false);
+    }
+  };
+  const openDeleteDialog = (item, type) => {
+    setSelectedCustomName({ ...item, type });
+    setDialog("delete");
+  };
+  const confirmDeleteName = async () => {
+    if (!selectedCustomName) return;
+    try {
+      setSavingName(true);
+      await deleteFamilyName(selectedCustomName.id);
+      await refreshNames();
+      setDialog(null);
+      setSelectedCustomName(null);
+      setFamilyActionError("");
+    } catch (error) {
+      setFamilyActionError(error.message || "Could not delete that name.");
+    } finally {
+      setSavingName(false);
+    }
+  };
+  const selectSearchResult = (item) => {
+    const index = names[item.type].findIndex((name) => name.id === item.id);
+    if (index >= 0) setSwipeIndexes((current) => ({ ...current, [item.type]: index }));
+    setMobileLane(item.type);
+    setSearchQuery("");
+    window.setTimeout(() => document.getElementById("match-heading")?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
   };
   const performSwipe = (direction) => {
     if (swipeDirection || !currentSwipeName || familySession.status !== "ready") return;
@@ -570,8 +681,9 @@ export function App() {
         </div>
         {familySession.status !== "ready" ? <div className={`family-sync-status ${familySession.status}`} role="status">{familySession.status === "connecting" ? "Loading your shared family space…" : "Family data is unavailable. Please check the Supabase setup."}</div> : null}
         {familyActionError ? <div className="family-action-error" role="alert">{familyActionError}</div> : null}
+        <NameSearch names={names} query={searchQuery} onQueryChange={setSearchQuery} onSelect={selectSearchResult} />
         <section className="match-layout">
-          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
+          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} memberId={familySession.memberId} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
             <h1 id="match-heading">Swipe your way<br />to a favorite</h1>
@@ -618,7 +730,7 @@ export function App() {
             <p className="swipe-help"><span>← Swipe left to pass</span><span>Swipe right to favorite →</span></p>
             <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
-          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
+          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} memberId={familySession.memberId} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "girl"} />
         </section>
       </>}
 
@@ -630,15 +742,48 @@ export function App() {
         <form className="add-form" onSubmit={addName}>
           <label htmlFor="new-name">Name</label>
           <input id="new-name" dir="auto" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Type a name in either script" />
+          <label htmlFor="new-name-native">Native script <small>optional</small></label>
+          <input id="new-name-native" dir="auto" value={newNameNative} onChange={(event) => setNewNameNative(event.target.value)} placeholder="Arabic, Persian, Urdu, or Kurdish script" />
+          <label htmlFor="new-name-meaning">Meaning <small>optional</small></label>
+          <input id="new-name-meaning" value={newNameMeaning} onChange={(event) => setNewNameMeaning(event.target.value)} placeholder="What does the name mean?" />
           <fieldset><legend>Add it to</legend><div className="type-choice">
             {[["boy", "Boy list"], ["girl", "Girl list"]].map(([value, label]) => <button type="button" key={value} className={newNameType === value ? "selected" : ""} onClick={() => setNewNameType(value)}>{label}</button>)}
           </div></fieldset>
           <fieldset><legend>Name origin</legend><div className="type-choice">
-            {["Arabic", "Persian"].map((value) => <button type="button" key={value} className={newNameOrigin === value ? "selected" : ""} onClick={() => setNewNameOrigin(value)}>{value}</button>)}
+            {originOptions.map((value) => <button type="button" key={value} className={newNameOrigin === value ? "selected" : ""} onClick={() => setNewNameOrigin(value)}>{value}</button>)}
           </div></fieldset>
+          {familyActionError ? <p className="poll-error" role="alert">{familyActionError}</p> : null}
           <button className="primary-button" type="submit" disabled={savingName || familySession.status !== "ready"}>{savingName ? "Saving…" : "Add to our list"}</button>
         </form>
       </Dialog>}
+
+      {dialog === "edit" && selectedCustomName ? <Dialog title={`Edit ${selectedCustomName.name}`} onClose={() => setDialog(null)}>
+        <form className="add-form" onSubmit={saveEditedName}>
+          <label htmlFor="edit-name">Name</label>
+          <input id="edit-name" dir="auto" autoFocus value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} />
+          <label htmlFor="edit-native">Native script <small>optional</small></label>
+          <input id="edit-native" dir="auto" value={editDraft.native} onChange={(event) => setEditDraft((current) => ({ ...current, native: event.target.value }))} />
+          <label htmlFor="edit-meaning">Meaning</label>
+          <input id="edit-meaning" value={editDraft.meaning} onChange={(event) => setEditDraft((current) => ({ ...current, meaning: event.target.value }))} />
+          <fieldset><legend>List</legend><div className="type-choice">
+            {[["boy", "Boy list"], ["girl", "Girl list"]].map(([value, label]) => <button type="button" key={value} className={editDraft.type === value ? "selected" : ""} onClick={() => setEditDraft((current) => ({ ...current, type: value }))}>{label}</button>)}
+          </div></fieldset>
+          <fieldset><legend>Name origin</legend><div className="type-choice">
+            {originOptions.map((value) => <button type="button" key={value} className={editDraft.origin === value ? "selected" : ""} onClick={() => setEditDraft((current) => ({ ...current, origin: value }))}>{value}</button>)}
+          </div></fieldset>
+          {familyActionError ? <p className="poll-error" role="alert">{familyActionError}</p> : null}
+          <button className="primary-button" type="submit" disabled={savingName}>{savingName ? "Saving…" : "Save changes"}</button>
+        </form>
+      </Dialog> : null}
+
+      {dialog === "delete" && selectedCustomName ? <Dialog title="Delete this name?" onClose={() => setDialog(null)}>
+        <p className="dialog-copy"><strong dir="auto">{selectedCustomName.name}</strong> will be removed from this family’s {selectedCustomName.type} list. Existing poll labels will remain.</p>
+        {familyActionError ? <p className="poll-error" role="alert">{familyActionError}</p> : null}
+        <div className="delete-dialog-actions">
+          <button className="secondary-dialog-button" onClick={() => setDialog(null)}>Keep name</button>
+          <button className="danger-button" onClick={confirmDeleteName} disabled={savingName}>{savingName ? "Deleting…" : "Delete name"}</button>
+        </div>
+      </Dialog> : null}
 
       {dialog === "invite" && <Dialog title="Bring your favorite people in" onClose={() => setDialog(null)}>
         <p className="dialog-copy">Anyone with this private link can suggest names and vote. The gender still stays hidden.</p>
