@@ -6,31 +6,21 @@ import {
 } from "@phosphor-icons/react";
 import {
   castFamilyPollVote,
+  createFamilyName,
   createFamilyPoll,
   ensureAnonymousUser,
   familyCode,
+  fetchFamilyMemberCount,
+  fetchFamilyNames,
   fetchFamilyPolls,
   isSupabaseConfigured,
   joinFamily,
+  setFamilyNameReaction,
+  subscribeToFamilyNames,
   subscribeToFamilyPolls,
 } from "./lib/supabase";
 
-const starterNames = {
-  boy: [
-    { name: "Zayn", native: "زين", origin: "Arabic", meaning: "Beauty, grace" },
-    { name: "Rayyan", native: "ريّان", origin: "Arabic", meaning: "Watered, luxuriant" },
-    { name: "Amir", native: "أمير", origin: "Arabic", meaning: "Commander, prince" },
-    { name: "Arman", native: "آرمان", origin: "Persian", meaning: "Wish, hope" },
-    { name: "Kian", native: "کیان", origin: "Persian", meaning: "King, foundation, pride" },
-  ].map((item, index) => ({ ...item, id: `b${index}`, liked: item.name === "Zayn" })),
-  girl: [
-    { name: "Layla", native: "ليلى", origin: "Arabic", meaning: "Night" },
-    { name: "Inaya", native: "عناية", origin: "Arabic", meaning: "Care, concern" },
-    { name: "Noor", native: "نور", origin: "Arabic", meaning: "Light" },
-    { name: "Darya", native: "دریا", origin: "Persian", meaning: "Sea, ocean" },
-    { name: "Shirin", native: "شیرین", origin: "Persian", meaning: "Sweet" },
-  ].map((item, index) => ({ ...item, id: `g${index}`, liked: item.name === "Shirin" })),
-};
+const EMPTY_NAMES = { boy: [], girl: [] };
 
 const generatedNames = [
   { name: "Zayd", native: "زيد", type: "boy", meaning: "Growth, abundance", origin: "Arabic" },
@@ -49,34 +39,7 @@ const generatedNames = [
   { name: "Laleh", native: "لاله", type: "girl", meaning: "Tulip", origin: "Persian" },
 ];
 
-const POLL_STORAGE_KEY = "nomi-family-polls-v1";
 const USER_NAME_STORAGE_KEY = "nomi-display-name-v1";
-const starterPolls = [
-  {
-    id: "starter-boy-poll",
-    type: "boy",
-    question: "Which boy name feels strongest?",
-    createdBy: "Nomi family",
-    votedOptionId: null,
-    options: [
-      { id: "boy-zayn", name: "Zayn", votes: 8 },
-      { id: "boy-arman", name: "Arman", votes: 5 },
-      { id: "boy-kian", name: "Kian", votes: 7 },
-    ],
-  },
-  {
-    id: "starter-girl-poll",
-    type: "girl",
-    question: "Which girl name feels sweetest?",
-    createdBy: "Nomi family",
-    votedOptionId: null,
-    options: [
-      { id: "girl-layla", name: "Layla", votes: 6 },
-      { id: "girl-darya", name: "Darya", votes: 8 },
-      { id: "girl-shirin", name: "Shirin", votes: 10 },
-    ],
-  },
-];
 
 function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActive = true }) {
   return (
@@ -200,78 +163,37 @@ function PollCard({ poll, candidates, onVote, disabled = false }) {
   );
 }
 
-function FamilyPoll({ names, userName }) {
-  const [polls, setPolls] = useState(() => {
-    if (isSupabaseConfigured) return [];
-    try {
-      const savedPolls = window.localStorage.getItem(POLL_STORAGE_KEY);
-      const parsedPolls = savedPolls ? JSON.parse(savedPolls) : null;
-      return Array.isArray(parsedPolls) ? parsedPolls : starterPolls;
-    } catch {
-      return starterPolls;
-    }
-  });
+function FamilyPoll({ names, familySession }) {
+  const [polls, setPolls] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [pollType, setPollType] = useState("boy");
   const [question, setQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollError, setPollError] = useState("");
-  const [databaseUserId, setDatabaseUserId] = useState(null);
-  const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? "connecting" : "local");
-  const [syncError, setSyncError] = useState("");
+  const [pollSyncError, setPollSyncError] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [votingPollId, setVotingPollId] = useState(null);
 
   useEffect(() => {
-    if (isSupabaseConfigured) return;
-    try {
-      window.localStorage.setItem(POLL_STORAGE_KEY, JSON.stringify(polls));
-    } catch {
-      // Polls still work for this session when browser storage is unavailable.
-    }
-  }, [polls]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured) return undefined;
+    if (familySession.status !== "ready" || !familySession.userId) return undefined;
     let cancelled = false;
-
-    const connect = async () => {
-      try {
-        setSyncStatus("connecting");
-        const user = await ensureAnonymousUser(userName);
-        await joinFamily(familyCode, userName);
-        const remotePolls = await fetchFamilyPolls(user.id, familyCode);
-        if (cancelled) return;
-        setDatabaseUserId(user.id);
-        setPolls(remotePolls);
-        setSyncStatus("ready");
-        setSyncError("");
-      } catch (error) {
-        if (cancelled) return;
-        setSyncStatus("error");
-        setSyncError(error.message || "Could not connect to the family database.");
-      }
-    };
-
-    connect();
-    return () => { cancelled = true; };
-  }, [userName]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !databaseUserId) return undefined;
     const refresh = async () => {
       try {
-        const remotePolls = await fetchFamilyPolls(databaseUserId, familyCode);
+        const remotePolls = await fetchFamilyPolls(familySession.userId, familyCode);
+        if (cancelled) return;
         setPolls(remotePolls);
-        setSyncStatus("ready");
-        setSyncError("");
+        setPollSyncError("");
       } catch (error) {
-        setSyncStatus("error");
-        setSyncError(error.message || "Could not refresh family polls.");
+        if (!cancelled) setPollSyncError(error.message || "Could not refresh family polls.");
       }
     };
-    return subscribeToFamilyPolls(familyCode, refresh);
-  }, [databaseUserId]);
+    void refresh();
+    const unsubscribe = subscribeToFamilyPolls(familyCode, refresh);
+    return () => { cancelled = true; unsubscribe(); };
+  }, [familySession.status, familySession.userId]);
+
+  const syncStatus = familySession.status === "ready" && pollSyncError ? "error" : familySession.status;
+  const syncError = pollSyncError || familySession.error;
 
   const openCreatePoll = (type = "boy") => {
     setPollType(type);
@@ -282,27 +204,14 @@ function FamilyPoll({ names, userName }) {
   };
   const updatePollOption = (index, value) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
   const castVote = async (pollId, optionId) => {
-    if (!isSupabaseConfigured) {
-      setPolls((current) => current.map((poll) => {
-        if (poll.id !== pollId || poll.votedOptionId) return poll;
-        return {
-          ...poll,
-          votedOptionId: optionId,
-          options: poll.options.map((option) => option.id === optionId ? { ...option, votes: option.votes + 1 } : option),
-        };
-      }));
-      return;
-    }
-
-    if (!databaseUserId || votingPollId) return;
+    if (!familySession.userId || votingPollId) return;
     try {
       setVotingPollId(pollId);
       await castFamilyPollVote(pollId, optionId);
-      setPolls(await fetchFamilyPolls(databaseUserId, familyCode));
-      setSyncError("");
+      setPolls(await fetchFamilyPolls(familySession.userId, familyCode));
+      setPollSyncError("");
     } catch (error) {
-      setSyncStatus("error");
-      setSyncError(error.message || "Your vote could not be saved.");
+      setPollSyncError(error.message || "Your vote could not be saved.");
     } finally {
       setVotingPollId(null);
     }
@@ -319,21 +228,7 @@ function FamilyPoll({ names, userName }) {
     }
     const pollQuestion = question.trim() || `Which ${pollType} name is your favorite?`;
 
-    if (!isSupabaseConfigured) {
-      const timestamp = Date.now();
-      setPolls((current) => [{
-        id: `poll-${timestamp}`,
-        type: pollType,
-        question: pollQuestion,
-        createdBy: userName,
-        votedOptionId: null,
-        options: uniqueNames.map((name, index) => ({ id: `option-${timestamp}-${index}`, name, votes: 0 })),
-      }, ...current]);
-      setIsCreating(false);
-      return;
-    }
-
-    if (!databaseUserId) {
+    if (!familySession.userId) {
       setPollError("The family database is still connecting. Try again in a moment.");
       return;
     }
@@ -341,9 +236,9 @@ function FamilyPoll({ names, userName }) {
     try {
       setPublishing(true);
       await createFamilyPoll({ code: familyCode, type: pollType, question: pollQuestion, names: uniqueNames });
-      setPolls(await fetchFamilyPolls(databaseUserId, familyCode));
+      setPolls(await fetchFamilyPolls(familySession.userId, familyCode));
       setIsCreating(false);
-      setSyncError("");
+      setPollSyncError("");
     } catch (error) {
       setPollError(error.message || "The poll could not be published.");
     } finally {
@@ -363,7 +258,6 @@ function FamilyPoll({ names, userName }) {
       <div className={`poll-sync-status ${syncStatus}`} role="status">
         {syncStatus === "ready" && <><CheckCircle size={18} weight="fill" /> Live family polls · code {familyCode}</>}
         {syncStatus === "connecting" && <>Connecting to the family database…</>}
-        {syncStatus === "local" && <>Device-only demo · polls are not shared yet</>}
         {syncStatus === "error" && <>Family polls are temporarily unavailable{import.meta.env.DEV && syncError ? ` · ${syncError}` : ""}</>}
       </div>
 
@@ -425,7 +319,17 @@ export function App() {
   const [draftUserName, setDraftUserName] = useState("");
   const [userNameError, setUserNameError] = useState("");
   const [activeView, setActiveView] = useState("lists");
-  const [names, setNames] = useState(starterNames);
+  const [names, setNames] = useState(EMPTY_NAMES);
+  const [familySession, setFamilySession] = useState({
+    status: isSupabaseConfigured ? "connecting" : "error",
+    userId: null,
+    familyId: null,
+    memberId: null,
+    memberCount: 0,
+    error: isSupabaseConfigured ? "" : "Supabase is not configured.",
+  });
+  const [familyActionError, setFamilyActionError] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [swipeIndexes, setSwipeIndexes] = useState({ boy: 0, girl: 0 });
   const [dragStart, setDragStart] = useState(null);
   const [dragX, setDragX] = useState(0);
@@ -436,32 +340,134 @@ export function App() {
   const [newNameOrigin, setNewNameOrigin] = useState("Arabic");
   const [copied, setCopied] = useState(false);
   const [mobileLane, setMobileLane] = useState("boy");
-  const currentBoy = names.boy[swipeIndexes.boy % names.boy.length];
-  const currentGirl = names.girl[swipeIndexes.girl % names.girl.length];
+  const currentBoy = names.boy.length ? names.boy[swipeIndexes.boy % names.boy.length] : null;
+  const currentGirl = names.girl.length ? names.girl[swipeIndexes.girl % names.girl.length] : null;
   const currentSwipeName = mobileLane === "boy" ? currentBoy : currentGirl;
 
-  const toggleName = (type, id) => setNames((current) => ({ ...current, [type]: current[type].map((item) => item.id === id ? { ...item, liked: !item.liked } : item) }));
-  const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setNewNameOrigin("Arabic"); setDialog("add"); };
-  const addName = (event) => {
-    event.preventDefault();
-    const cleanName = newName.trim();
-    if (!cleanName) return;
-    setNames((current) => ({ ...current, [newNameType]: [...current[newNameType], { id: `${newNameType}-${Date.now()}`, name: cleanName, native: "", origin: newNameOrigin, meaning: "Family suggestion", liked: true }] }));
-    setDialog(null);
+  useEffect(() => {
+    if (!userName || !isSupabaseConfigured) return undefined;
+    let cancelled = false;
+    const connect = async () => {
+      try {
+        setFamilySession((current) => ({ ...current, status: "connecting", error: "" }));
+        const user = await ensureAnonymousUser(userName);
+        const context = await joinFamily(familyCode, userName);
+        if (!context?.family_id || !context?.member_id) {
+          throw new Error("Run the latest Supabase migration before using shared family data.");
+        }
+        const [familyNames, memberCount] = await Promise.all([
+          fetchFamilyNames(context.family_id, context.member_id),
+          fetchFamilyMemberCount(context.family_id),
+        ]);
+        if (cancelled) return;
+        setNames(familyNames);
+        setFamilySession({
+          status: "ready",
+          userId: user.id,
+          familyId: context.family_id,
+          memberId: context.member_id,
+          memberCount,
+          error: "",
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setFamilySession((current) => ({ ...current, status: "error", error: error.message || "Could not join this family." }));
+        }
+      }
+    };
+    void connect();
+    return () => { cancelled = true; };
+  }, [userName]);
+
+  useEffect(() => {
+    if (familySession.status !== "ready" || !familySession.familyId || !familySession.memberId) return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const [familyNames, memberCount] = await Promise.all([
+          fetchFamilyNames(familySession.familyId, familySession.memberId),
+          fetchFamilyMemberCount(familySession.familyId),
+        ]);
+        if (cancelled) return;
+        setNames(familyNames);
+        setFamilySession((current) => ({ ...current, memberCount, error: "" }));
+        setFamilyActionError("");
+      } catch (error) {
+        if (!cancelled) setFamilyActionError(error.message || "Could not refresh family names.");
+      }
+    };
+    const unsubscribe = subscribeToFamilyNames(familySession.familyId, refresh);
+    return () => { cancelled = true; unsubscribe(); };
+  }, [familySession.status, familySession.familyId, familySession.memberId]);
+
+  const refreshNames = async () => {
+    if (!familySession.familyId || !familySession.memberId) return;
+    const familyNames = await fetchFamilyNames(familySession.familyId, familySession.memberId);
+    setNames(familyNames);
   };
-  const saveGenerated = (result) => {
-    setNames((current) => current[result.type].some((item) => item.name === result.name) ? current : ({ ...current, [result.type]: [...current[result.type], { ...result, id: `${result.type}-${Date.now()}`, liked: true }] }));
-    setActiveView("lists");
-    window.scrollTo({ top: 0, behavior: "auto" });
-  };
-  const performSwipe = (direction) => {
-    if (swipeDirection) return;
-    const type = mobileLane;
-    const targetId = currentSwipeName.id;
+
+  const toggleName = async (type, id) => {
+    if (familySession.status !== "ready") return;
+    const item = names[type].find((name) => name.id === id);
+    if (!item) return;
+    const nextStatus = item.currentStatus === "favorite" ? "passed" : "favorite";
     setNames((current) => ({
       ...current,
-      [type]: current[type].map((item) => item.id === targetId ? { ...item, liked: direction === "right" } : item),
+      [type]: current[type].map((name) => name.id === id ? { ...name, liked: nextStatus === "favorite", currentStatus: nextStatus } : name),
     }));
+    try {
+      await setFamilyNameReaction(id, nextStatus);
+      await refreshNames();
+      setFamilyActionError("");
+    } catch (error) {
+      await refreshNames().catch(() => undefined);
+      setFamilyActionError(error.message || "Could not save that favorite.");
+    }
+  };
+  const openAddDialog = (type) => { setNewNameType(type); setNewName(""); setNewNameOrigin("Arabic"); setDialog("add"); };
+  const addName = async (event) => {
+    event.preventDefault();
+    const cleanName = newName.trim();
+    if (!cleanName || !familySession.familyId) return;
+    try {
+      setSavingName(true);
+      const nameId = await createFamilyName({ familyId: familySession.familyId, name: cleanName, origin: newNameOrigin, meaning: "Family suggestion", type: newNameType });
+      await setFamilyNameReaction(nameId, "favorite");
+      await refreshNames();
+      setDialog(null);
+      setFamilyActionError("");
+    } catch (error) {
+      setFamilyActionError(error.message || "Could not add that name.");
+    } finally {
+      setSavingName(false);
+    }
+  };
+  const saveGenerated = async (result) => {
+    if (!familySession.familyId) return;
+    try {
+      const existing = names[result.type].find((item) => item.name === result.name);
+      const nameId = existing?.id || await createFamilyName({ familyId: familySession.familyId, ...result, isCustom: false });
+      await setFamilyNameReaction(nameId, "favorite");
+      await refreshNames();
+      setActiveView("lists");
+      setFamilyActionError("");
+      window.scrollTo({ top: 0, behavior: "auto" });
+    } catch (error) {
+      setFamilyActionError(error.message || "Could not save that name.");
+    }
+  };
+  const performSwipe = (direction) => {
+    if (swipeDirection || !currentSwipeName || familySession.status !== "ready") return;
+    const type = mobileLane;
+    const targetId = currentSwipeName.id;
+    const nextStatus = direction === "right" ? "favorite" : "passed";
+    setNames((current) => ({
+      ...current,
+      [type]: current[type].map((item) => item.id === targetId ? { ...item, liked: nextStatus === "favorite", currentStatus: nextStatus } : item),
+    }));
+    void setFamilyNameReaction(targetId, nextStatus)
+      .then(() => refreshNames())
+      .catch((error) => setFamilyActionError(error.message || "Could not save that swipe."));
     setSwipeDirection(direction);
     setDragX(direction === "right" ? 520 : -520);
     window.setTimeout(() => {
@@ -560,10 +566,12 @@ export function App() {
       {activeView === "lists" && <>
         <div className="privacy-banner">
           <span><LockKey size={22} weight="bold" /> Gender stays a surprise</span><i aria-hidden="true" />
-          <span className="member-status"><UsersThree size={25} weight="bold" /><span className="member-long">8 family members have joined</span><span className="member-short">8 joined</span></span>
+          <span className="member-status"><UsersThree size={25} weight="bold" /><span className="member-long">{familySession.memberCount} family {familySession.memberCount === 1 ? "member has" : "members have"} joined</span><span className="member-short">{familySession.memberCount} joined</span></span>
         </div>
+        {familySession.status !== "ready" ? <div className={`family-sync-status ${familySession.status}`} role="status">{familySession.status === "connecting" ? "Loading your shared family space…" : "Family data is unavailable. Please check the Supabase setup."}</div> : null}
+        {familyActionError ? <div className="family-action-error" role="alert">{familyActionError}</div> : null}
         <section className="match-layout">
-          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
+          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
             <h1 id="match-heading">Swipe your way<br />to a favorite</h1>
@@ -582,7 +590,7 @@ export function App() {
               ))}
             </div>
             <div className="swipe-deck">
-              <article
+              {currentSwipeName ? <article
                 className={`swipe-card ${mobileLane} ${dragStart !== null ? "dragging" : ""}`}
                 style={{ transform: `translateX(${dragX}px) rotate(${dragX / 18}deg)`, opacity: Math.max(0.38, 1 - Math.abs(dragX) / 520) }}
                 onPointerDown={beginSwipe}
@@ -601,21 +609,21 @@ export function App() {
                   <p>{currentSwipeName.meaning}</p>
                 </div>
                 <span className="swipe-card-hint">Drag the card left or right</span>
-              </article>
+              </article> : <div className="swipe-card swipe-card-loading" role="status"><Sparkle size={30} weight="duotone" /><strong>{familySession.status === "error" ? "Names unavailable" : "Loading names…"}</strong></div>}
             </div>
             <div className="swipe-actions" aria-label="Choose this name">
-              <button className="swipe-action pass" onClick={() => performSwipe("left")} disabled={Boolean(swipeDirection)}><X size={28} weight="bold" /><span>Pass</span></button>
-              <button className="swipe-action favorite" onClick={() => performSwipe("right")} disabled={Boolean(swipeDirection)}><Heart size={29} weight="fill" /><span>Favorite</span></button>
+              <button className="swipe-action pass" onClick={() => performSwipe("left")} disabled={Boolean(swipeDirection) || !currentSwipeName}><X size={28} weight="bold" /><span>Pass</span></button>
+              <button className="swipe-action favorite" onClick={() => performSwipe("right")} disabled={Boolean(swipeDirection) || !currentSwipeName}><Heart size={29} weight="fill" /><span>Favorite</span></button>
             </div>
             <p className="swipe-help"><span>← Swipe left to pass</span><span>Swipe right to favorite →</span></p>
             <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
-          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
+          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} isMobileActive={mobileLane === "girl"} />
         </section>
       </>}
 
       {activeView === "lab" && <NameLab onSave={saveGenerated} />}
-      {activeView === "poll" && <FamilyPoll names={names} userName={userName} />}
+      {activeView === "poll" && <FamilyPoll names={names} familySession={familySession} />}
       <div className="mobile-nav-spacer" aria-hidden="true" />
 
       {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
@@ -628,7 +636,7 @@ export function App() {
           <fieldset><legend>Name origin</legend><div className="type-choice">
             {["Arabic", "Persian"].map((value) => <button type="button" key={value} className={newNameOrigin === value ? "selected" : ""} onClick={() => setNewNameOrigin(value)}>{value}</button>)}
           </div></fieldset>
-          <button className="primary-button" type="submit">Add to our list</button>
+          <button className="primary-button" type="submit" disabled={savingName || familySession.status !== "ready"}>{savingName ? "Saving…" : "Add to our list"}</button>
         </form>
       </Dialog>}
 

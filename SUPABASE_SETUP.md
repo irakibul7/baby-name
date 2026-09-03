@@ -2,7 +2,7 @@
 
 1. Create a Supabase project.
 2. Open **Authentication → Providers → Anonymous Sign-Ins** and enable anonymous sign-ins.
-3. Open the SQL editor and run both files in `supabase/migrations/` in filename order.
+3. Open the SQL editor and run every file in `supabase/migrations/` in filename order.
 4. Copy `.env.example` to `.env.local` and add the project URL and publishable key.
 5. Add the same three environment variables to the Vercel project and redeploy.
 

@@ -88,6 +88,9 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .privacy-banner span { display: flex; align-items: center; gap: 9px; }
 .privacy-banner i { width: 1px; height: 25px; background: rgba(7, 27, 67, 0.2); }
 .member-short { display: none !important; }
+.family-sync-status, .family-action-error { width: fit-content; max-width: 100%; margin: 12px auto 0; padding: 8px 13px; border-radius: 999px; font-size: 12px; font-weight: 900; text-align: center; }
+.family-sync-status.connecting { background: rgba(255, 183, 10, 0.14); color: #765100; }
+.family-sync-status.error, .family-action-error { background: rgba(209, 61, 74, 0.1); color: #982833; }
 
 .match-layout {
   width: min(1260px, 100%); margin: 0 auto; display: grid;
@@ -163,6 +166,8 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 }
 .swipe-card.girl { border-color: var(--yellow); }
 .swipe-card.dragging { cursor: grabbing; transition: none; }
+.swipe-card-loading { align-items: center; justify-content: center; gap: 12px; color: #536078; cursor: default; }
+.swipe-card-loading strong { font-family: "Fredoka", sans-serif; font-size: 24px; }
 .swipe-card-topline { display: flex; justify-content: space-between; gap: 15px; color: #66728a; font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
 .swipe-card-topline small { font-size: inherit; font-weight: inherit; }
 .swipe-card-copy { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
