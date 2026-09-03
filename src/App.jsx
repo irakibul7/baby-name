@@ -50,6 +50,7 @@ const generatedNames = [
 ];
 
 const POLL_STORAGE_KEY = "nomi-family-polls-v1";
+const USER_NAME_STORAGE_KEY = "nomi-display-name-v1";
 const starterPolls = [
   {
     id: "starter-boy-poll",
@@ -111,11 +112,11 @@ function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActiv
 
 function Dialog({ title, children, onClose }) {
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose || undefined}>
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-heading">
           <h2 id="dialog-title">{title}</h2>
-          <button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={22} weight="bold" /></button>
+          {onClose ? <button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={22} weight="bold" /></button> : null}
         </div>
         {children}
       </section>
@@ -199,7 +200,7 @@ function PollCard({ poll, candidates, onVote, disabled = false }) {
   );
 }
 
-function FamilyPoll({ names }) {
+function FamilyPoll({ names, userName }) {
   const [polls, setPolls] = useState(() => {
     if (isSupabaseConfigured) return [];
     try {
@@ -237,8 +238,8 @@ function FamilyPoll({ names }) {
     const connect = async () => {
       try {
         setSyncStatus("connecting");
-        const user = await ensureAnonymousUser();
-        await joinFamily(familyCode);
+        const user = await ensureAnonymousUser(userName);
+        await joinFamily(familyCode, userName);
         const remotePolls = await fetchFamilyPolls(user.id, familyCode);
         if (cancelled) return;
         setDatabaseUserId(user.id);
@@ -254,7 +255,7 @@ function FamilyPoll({ names }) {
 
     connect();
     return () => { cancelled = true; };
-  }, []);
+  }, [userName]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !databaseUserId) return undefined;
@@ -324,7 +325,7 @@ function FamilyPoll({ names }) {
         id: `poll-${timestamp}`,
         type: pollType,
         question: pollQuestion,
-        createdBy: "A family member",
+        createdBy: userName,
         votedOptionId: null,
         options: uniqueNames.map((name, index) => ({ id: `option-${timestamp}-${index}`, name, votes: 0 })),
       }, ...current]);
@@ -414,6 +415,15 @@ function FamilyPoll({ names }) {
 }
 
 export function App() {
+  const [userName, setUserName] = useState(() => {
+    try {
+      return window.localStorage.getItem(USER_NAME_STORAGE_KEY)?.trim() || "";
+    } catch {
+      return "";
+    }
+  });
+  const [draftUserName, setDraftUserName] = useState("");
+  const [userNameError, setUserNameError] = useState("");
   const [activeView, setActiveView] = useState("lists");
   const [names, setNames] = useState(starterNames);
   const [swipeIndexes, setSwipeIndexes] = useState({ boy: 0, girl: 0 });
@@ -490,6 +500,49 @@ export function App() {
     { id: "poll", label: "Family Polls", icon: UsersThree },
   ];
 
+  const saveUserName = (event) => {
+    event.preventDefault();
+    const cleanUserName = draftUserName.trim();
+    if (cleanUserName.length < 2) {
+      setUserNameError("Please enter at least 2 characters.");
+      return;
+    }
+    try {
+      window.localStorage.setItem(USER_NAME_STORAGE_KEY, cleanUserName);
+    } catch {
+      // The name still works for this session when browser storage is unavailable.
+    }
+    setUserName(cleanUserName);
+    setUserNameError("");
+  };
+
+  if (!userName) {
+    return (
+      <main className="app-shell onboarding-shell">
+        <div className="onboarding-brand" aria-hidden="true">Nomi <Star size={25} weight="fill" /></div>
+        <Dialog title="Welcome to Nomi">
+          <form className="user-name-form" onSubmit={saveUserName}>
+            <p className="dialog-copy">No email or password. Just add your name so family members know who created each poll.</p>
+            <label htmlFor="user-name">What should we call you?</label>
+            <input
+              id="user-name"
+              dir="auto"
+              autoFocus
+              autoComplete="nickname"
+              maxLength={40}
+              value={draftUserName}
+              onChange={(event) => { setDraftUserName(event.target.value); setUserNameError(""); }}
+              placeholder="Your name"
+            />
+            {userNameError ? <p className="user-name-error" role="alert">{userNameError}</p> : null}
+            <button className="primary-button" type="submit">Continue</button>
+            <small>Your name is only used inside this family space.</small>
+          </form>
+        </Dialog>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -562,7 +615,7 @@ export function App() {
       </>}
 
       {activeView === "lab" && <NameLab onSave={saveGenerated} />}
-      {activeView === "poll" && <FamilyPoll names={names} />}
+      {activeView === "poll" && <FamilyPoll names={names} userName={userName} />}
 
       {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
         <form className="add-form" onSubmit={addName}>

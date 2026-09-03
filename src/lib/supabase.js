@@ -22,21 +22,34 @@ function requireSupabase() {
   return supabase;
 }
 
-export async function ensureAnonymousUser() {
+export async function ensureAnonymousUser(displayName) {
   const client = requireSupabase();
+  const cleanDisplayName = displayName.trim();
   const { data: sessionData, error: sessionError } = await client.auth.getSession();
   if (sessionError) throw sessionError;
-  if (sessionData.session?.user) return sessionData.session.user;
+  if (sessionData.session?.user) {
+    const currentUser = sessionData.session.user;
+    if (currentUser.user_metadata?.display_name === cleanDisplayName) return currentUser;
 
-  const { data, error } = await client.auth.signInAnonymously();
+    const { data, error } = await client.auth.updateUser({ data: { display_name: cleanDisplayName } });
+    if (error) throw error;
+    return data.user;
+  }
+
+  const { data, error } = await client.auth.signInAnonymously({
+    options: { data: { display_name: cleanDisplayName } },
+  });
   if (error) throw error;
   if (!data.user) throw new Error("Supabase did not return an anonymous user.");
   return data.user;
 }
 
-export async function joinFamily(code = familyCode) {
+export async function joinFamily(code = familyCode, displayName) {
   const client = requireSupabase();
-  const { data, error } = await client.rpc("join_family", { p_family_code: code });
+  const { data, error } = await client.rpc("join_family", {
+    p_family_code: code,
+    p_display_name: displayName.trim(),
+  });
   if (error) throw error;
   return data;
 }

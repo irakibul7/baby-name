@@ -286,6 +286,21 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .dialog h2 { margin: 0; font-size: 29px; }
 .icon-button { border: 0; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; background: #f3eddf; cursor: pointer; }
 .dialog-copy { color: #526079; line-height: 1.6; }
+.onboarding-shell { display: grid; place-items: center; }
+.onboarding-brand {
+  position: fixed; top: 26px; left: 50%; transform: translateX(-50%); z-index: 11;
+  color: var(--teal-dark); display: inline-flex; align-items: flex-start; font-family: "Fredoka", sans-serif;
+  font-size: 52px; font-weight: 700; letter-spacing: -4px;
+}
+.onboarding-brand svg { margin: -4px 0 0 4px; color: var(--yellow); }
+.user-name-form label { display: block; margin: 24px 0 8px; font-weight: 900; }
+.user-name-form input {
+  width: 100%; min-height: 55px; border: 2px solid rgba(7, 27, 67, 0.18); border-radius: 10px;
+  padding: 0 15px; background: white; font-size: 18px;
+}
+.user-name-form .primary-button { width: 100%; margin-top: 18px; }
+.user-name-form > small { display: block; margin-top: 15px; color: #69758c; font-weight: 700; text-align: center; }
+.user-name-error { margin: 9px 0 -6px; color: #b42318; font-size: 14px; font-weight: 800; }
 .add-form label { display: block; font-weight: 900; margin: 24px 0 8px; }
 .add-form input { width: 100%; min-height: 53px; border: 2px solid rgba(7, 27, 67, 0.18); border-radius: 10px; padding: 0 15px; background: white; font-size: 18px; }
 .add-form .primary-button, .share-button { width: 100%; }
@@ -394,6 +409,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .dialog { width: 100%; max-height: 88dvh; overflow-y: auto; border-radius: 24px 24px 0 0; padding: 25px 20px calc(25px + env(safe-area-inset-bottom)); }
   .dialog h2 { font-size: 27px; }
   .icon-button { width: 44px; height: 44px; }
+  .onboarding-brand { top: 20px; font-size: 44px; }
 }
 
 @media (max-width: 460px) {
