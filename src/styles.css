@@ -78,6 +78,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .invite-button { justify-self: end; }
 .invite-button:hover, .primary-button:hover { transform: translateY(-2px); }
 .invite-button:active, .primary-button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--yellow-dark); }
+.primary-button:disabled, .invite-button:disabled { opacity: 0.56; cursor: wait; transform: none; }
 
 .privacy-banner {
   width: fit-content; margin: 25px auto 0; padding: 15px 28px; border-radius: 22px;
@@ -215,6 +216,14 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .poll-heading { max-width: 710px; margin: 0 auto 45px; text-align: center; }
 .poll-heading p { margin-left: auto; margin-right: auto; }
 .create-poll-button { margin-top: 16px; background: var(--teal); color: white; box-shadow: 0 4px 0 #005d60; }
+.poll-sync-status {
+  width: fit-content; max-width: 100%; margin: -24px auto 31px; padding: 8px 13px; border-radius: 999px;
+  background: rgba(4, 127, 131, 0.08); color: var(--teal-dark); display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 11px; font-weight: 900; text-align: center;
+}
+.poll-sync-status.local { background: rgba(31, 95, 224, 0.08); color: #31578f; }
+.poll-sync-status.connecting { background: rgba(255, 183, 10, 0.12); color: #835900; }
+.poll-sync-status.error { background: rgba(209, 61, 74, 0.09); color: #a22a36; }
 .poll-groups { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 26px; }
 .poll-group { min-width: 0; }
 .poll-group-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; text-align: left; }
@@ -223,6 +232,10 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .poll-group.girl .poll-group-heading h2 { color: #a97000; }
 .poll-group-heading p { margin: 2px 0 0; color: #69758c; font-size: 13px; font-weight: 800; }
 .poll-stack { display: flex; flex-direction: column; gap: 18px; }
+.empty-poll-state { min-height: 180px; border: 2px dashed rgba(7, 27, 67, 0.16); border-radius: 17px; background: rgba(255, 255, 255, 0.52); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #69758c; text-align: center; }
+.empty-poll-state p { margin: 0; font-weight: 800; }
+.empty-poll-state button { border: 0; border-bottom: 2px solid currentColor; background: transparent; color: var(--teal-dark); padding: 5px 0; font-weight: 900; cursor: pointer; }
+.poll-group.girl .empty-poll-state button { color: #966500; }
 .community-poll { border: 1px solid rgba(7, 27, 67, 0.1); border-top: 5px solid var(--teal); border-radius: 17px; background: rgba(255, 255, 255, 0.92); padding: 21px; box-shadow: 0 5px 0 rgba(7, 27, 67, 0.05), 0 10px 24px rgba(7, 27, 67, 0.07); }
 .community-poll.girl { border-top-color: var(--yellow); }
 .community-poll-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #68748b; }

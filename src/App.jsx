@@ -4,6 +4,16 @@ import {
   LockKey, MagicWand, Plus, ShareNetwork, Sparkle, Star, UserPlus,
   UsersThree, X,
 } from "@phosphor-icons/react";
+import {
+  castFamilyPollVote,
+  createFamilyPoll,
+  ensureAnonymousUser,
+  familyCode,
+  fetchFamilyPolls,
+  isSupabaseConfigured,
+  joinFamily,
+  subscribeToFamilyPolls,
+} from "./lib/supabase";
 
 const starterNames = {
   boy: [
@@ -149,7 +159,7 @@ function NameLab({ onSave }) {
   );
 }
 
-function PollCard({ poll, candidates, onVote }) {
+function PollCard({ poll, candidates, onVote, disabled = false }) {
   const totalVotes = poll.options.reduce((sum, option) => sum + option.votes, 0);
   const hasVoted = Boolean(poll.votedOptionId);
 
@@ -170,7 +180,7 @@ function PollCard({ poll, candidates, onVote }) {
               key={option.id}
               className={`poll-choice ${selected ? "chosen" : ""}`}
               onClick={() => onVote(poll.id, option.id)}
-              disabled={hasVoted}
+              disabled={hasVoted || disabled}
               aria-pressed={selected}
             >
               <span className="poll-choice-copy">
@@ -191,6 +201,7 @@ function PollCard({ poll, candidates, onVote }) {
 
 function FamilyPoll({ names }) {
   const [polls, setPolls] = useState(() => {
+    if (isSupabaseConfigured) return [];
     try {
       const savedPolls = window.localStorage.getItem(POLL_STORAGE_KEY);
       const parsedPolls = savedPolls ? JSON.parse(savedPolls) : null;
@@ -204,8 +215,14 @@ function FamilyPoll({ names }) {
   const [question, setQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollError, setPollError] = useState("");
+  const [databaseUserId, setDatabaseUserId] = useState(null);
+  const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? "connecting" : "local");
+  const [syncError, setSyncError] = useState("");
+  const [publishing, setPublishing] = useState(false);
+  const [votingPollId, setVotingPollId] = useState(null);
 
   useEffect(() => {
+    if (isSupabaseConfigured) return;
     try {
       window.localStorage.setItem(POLL_STORAGE_KEY, JSON.stringify(polls));
     } catch {
@@ -213,23 +230,83 @@ function FamilyPoll({ names }) {
     }
   }, [polls]);
 
-  const openCreatePoll = () => {
-    setPollType("boy");
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+    let cancelled = false;
+
+    const connect = async () => {
+      try {
+        setSyncStatus("connecting");
+        const user = await ensureAnonymousUser();
+        await joinFamily(familyCode);
+        const remotePolls = await fetchFamilyPolls(user.id, familyCode);
+        if (cancelled) return;
+        setDatabaseUserId(user.id);
+        setPolls(remotePolls);
+        setSyncStatus("ready");
+        setSyncError("");
+      } catch (error) {
+        if (cancelled) return;
+        setSyncStatus("error");
+        setSyncError(error.message || "Could not connect to the family database.");
+      }
+    };
+
+    connect();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !databaseUserId) return undefined;
+    const refresh = async () => {
+      try {
+        const remotePolls = await fetchFamilyPolls(databaseUserId, familyCode);
+        setPolls(remotePolls);
+        setSyncStatus("ready");
+        setSyncError("");
+      } catch (error) {
+        setSyncStatus("error");
+        setSyncError(error.message || "Could not refresh family polls.");
+      }
+    };
+    return subscribeToFamilyPolls(familyCode, refresh);
+  }, [databaseUserId]);
+
+  const openCreatePoll = (type = "boy") => {
+    setPollType(type);
     setQuestion("");
     setPollOptions(["", ""]);
     setPollError("");
     setIsCreating(true);
   };
   const updatePollOption = (index, value) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
-  const castVote = (pollId, optionId) => setPolls((current) => current.map((poll) => {
-    if (poll.id !== pollId || poll.votedOptionId) return poll;
-    return {
-      ...poll,
-      votedOptionId: optionId,
-      options: poll.options.map((option) => option.id === optionId ? { ...option, votes: option.votes + 1 } : option),
-    };
-  }));
-  const createPoll = (event) => {
+  const castVote = async (pollId, optionId) => {
+    if (!isSupabaseConfigured) {
+      setPolls((current) => current.map((poll) => {
+        if (poll.id !== pollId || poll.votedOptionId) return poll;
+        return {
+          ...poll,
+          votedOptionId: optionId,
+          options: poll.options.map((option) => option.id === optionId ? { ...option, votes: option.votes + 1 } : option),
+        };
+      }));
+      return;
+    }
+
+    if (!databaseUserId || votingPollId) return;
+    try {
+      setVotingPollId(pollId);
+      await castFamilyPollVote(pollId, optionId);
+      setPolls(await fetchFamilyPolls(databaseUserId, familyCode));
+      setSyncError("");
+    } catch (error) {
+      setSyncStatus("error");
+      setSyncError(error.message || "Your vote could not be saved.");
+    } finally {
+      setVotingPollId(null);
+    }
+  };
+  const createPoll = async (event) => {
     event.preventDefault();
     const uniqueNames = pollOptions
       .map((name) => name.trim())
@@ -239,16 +316,38 @@ function FamilyPoll({ names }) {
       setPollError("Add at least two different names.");
       return;
     }
-    const timestamp = Date.now();
-    setPolls((current) => [{
-      id: `poll-${timestamp}`,
-      type: pollType,
-      question: question.trim() || `Which ${pollType} name is your favorite?`,
-      createdBy: "A family member",
-      votedOptionId: null,
-      options: uniqueNames.map((name, index) => ({ id: `option-${timestamp}-${index}`, name, votes: 0 })),
-    }, ...current]);
-    setIsCreating(false);
+    const pollQuestion = question.trim() || `Which ${pollType} name is your favorite?`;
+
+    if (!isSupabaseConfigured) {
+      const timestamp = Date.now();
+      setPolls((current) => [{
+        id: `poll-${timestamp}`,
+        type: pollType,
+        question: pollQuestion,
+        createdBy: "A family member",
+        votedOptionId: null,
+        options: uniqueNames.map((name, index) => ({ id: `option-${timestamp}-${index}`, name, votes: 0 })),
+      }, ...current]);
+      setIsCreating(false);
+      return;
+    }
+
+    if (!databaseUserId) {
+      setPollError("The family database is still connecting. Try again in a moment.");
+      return;
+    }
+
+    try {
+      setPublishing(true);
+      await createFamilyPoll({ code: familyCode, type: pollType, question: pollQuestion, names: uniqueNames });
+      setPolls(await fetchFamilyPolls(databaseUserId, familyCode));
+      setIsCreating(false);
+      setSyncError("");
+    } catch (error) {
+      setPollError(error.message || "The poll could not be published.");
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -257,7 +356,14 @@ function FamilyPoll({ names }) {
         <span className="eyebrow"><UsersThree size={19} weight="fill" /> Family polls</span>
         <h1>Everyone gets a voice.</h1>
         <p>Create a poll for boy or girl names, suggest your favorites, and let the family vote.</p>
-        <button className="primary-button create-poll-button" onClick={openCreatePoll}><Plus size={21} weight="bold" /> Create a new poll</button>
+        <button className="primary-button create-poll-button" onClick={() => openCreatePoll()} disabled={syncStatus === "connecting" || syncStatus === "error"}><Plus size={21} weight="bold" /> Create a new poll</button>
+      </div>
+
+      <div className={`poll-sync-status ${syncStatus}`} role="status">
+        {syncStatus === "ready" && <><CheckCircle size={18} weight="fill" /> Live family polls · code {familyCode}</>}
+        {syncStatus === "connecting" && <>Connecting to the family database…</>}
+        {syncStatus === "local" && <>Device-only demo · polls are not shared yet</>}
+        {syncStatus === "error" && <>Family polls are temporarily unavailable{import.meta.env.DEV && syncError ? ` · ${syncError}` : ""}</>}
       </div>
 
       <div className="poll-groups">
@@ -270,7 +376,7 @@ function FamilyPoll({ names }) {
                 <div><h2 id={`${type}-poll-heading`}>{type === "boy" ? "Boy polls" : "Girl polls"}</h2><p>{typePolls.length} active {typePolls.length === 1 ? "poll" : "polls"}</p></div>
               </div>
               <div className="poll-stack">
-                {typePolls.map((poll) => <PollCard key={poll.id} poll={poll} candidates={[...names[type], ...generatedNames.filter((item) => item.type === type)]} onVote={castVote} />)}
+                {typePolls.length ? typePolls.map((poll) => <PollCard key={poll.id} poll={poll} candidates={[...names[type], ...generatedNames.filter((item) => item.type === type)]} onVote={castVote} disabled={votingPollId === poll.id} />) : <div className="empty-poll-state"><Sparkle size={22} weight="duotone" /><p>No {type} polls yet.</p><button onClick={() => openCreatePoll(type)}>Create the first one</button></div>}
               </div>
             </section>
           );
@@ -300,7 +406,7 @@ function FamilyPoll({ names }) {
             {pollOptions.length < 5 && <button className="add-poll-option" type="button" onClick={() => setPollOptions((current) => [...current, ""])}><Plus size={18} weight="bold" /> Add another name</button>}
           </fieldset>
           {pollError && <p className="poll-error" role="alert">{pollError}</p>}
-          <button className="primary-button publish-poll-button" type="submit">Publish poll</button>
+          <button className="primary-button publish-poll-button" type="submit" disabled={publishing}>{publishing ? "Publishing…" : "Publish poll"}</button>
         </form>
       </Dialog>}
     </section>
@@ -372,7 +478,8 @@ export function App() {
     else setDragX(0);
   };
   const cancelSwipe = () => { setDragStart(null); setDragX(0); };
-  const copyInvite = async () => { await navigator.clipboard?.writeText("https://nomi.family/join/8H2K"); setCopied(true); };
+  const inviteUrl = `${window.location.origin}/join/${familyCode}`;
+  const copyInvite = async () => { await navigator.clipboard?.writeText(inviteUrl); setCopied(true); };
   const changeView = (view) => {
     setActiveView(view);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -473,7 +580,7 @@ export function App() {
 
       {dialog === "invite" && <Dialog title="Bring your favorite people in" onClose={() => setDialog(null)}>
         <p className="dialog-copy">Anyone with this private link can suggest names and vote. The gender still stays hidden.</p>
-        <div className="invite-link"><span>nomi.family/join/8H2K</span><button onClick={copyInvite}>{copied ? <CheckCircle size={21} weight="fill" /> : <Copy size={21} weight="bold" />}{copied ? "Copied" : "Copy"}</button></div>
+        <div className="invite-link"><span>{inviteUrl.replace(/^https?:\/\//, "")}</span><button onClick={copyInvite}>{copied ? <CheckCircle size={21} weight="fill" /> : <Copy size={21} weight="bold" />}{copied ? "Copied" : "Copy"}</button></div>
         <button className="primary-button share-button" onClick={copyInvite}><ShareNetwork size={22} weight="bold" /> Share invite</button>
       </Dialog>}
     </main>
