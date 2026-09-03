@@ -106,6 +106,87 @@ export async function fetchFamilyMemberCount(familyId) {
   return count || 0;
 }
 
+export async function fetchFamilyShortlist(familyId) {
+  const client = requireSupabase();
+  const [namesResult, membersResult, pollOptionsResult, choicesResult] = await Promise.all([
+    client
+      .from("name_entries")
+      .select("id, name, script, origin, meaning, gender_list, is_custom, created_by, name_reactions ( member_id, status )")
+      .eq("family_id", familyId),
+    client.from("family_members").select("id, display_name").eq("family_id", familyId),
+    client
+      .from("poll_options")
+      .select("name_entry_id, poll_votes ( id ), polls!inner ( family_id )")
+      .eq("polls.family_id", familyId)
+      .not("name_entry_id", "is", null),
+    client.from("family_final_choices").select("gender_list, name_entry_id, chosen_by, chosen_at").eq("family_id", familyId),
+  ]);
+
+  const error = namesResult.error || membersResult.error || pollOptionsResult.error || choicesResult.error;
+  if (error) throw error;
+
+  const memberNames = new Map((membersResult.data || []).map((member) => [member.id, member.display_name]));
+  const chosenNameIds = new Set((choicesResult.data || []).map((choice) => choice.name_entry_id));
+  const pollVotes = new Map();
+  for (const option of pollOptionsResult.data || []) {
+    pollVotes.set(option.name_entry_id, (pollVotes.get(option.name_entry_id) || 0) + (option.poll_votes?.length || 0));
+  }
+
+  const result = { boy: [], girl: [], choices: {} };
+  for (const entry of namesResult.data || []) {
+    const favoriteMembers = (entry.name_reactions || [])
+      .filter((reaction) => reaction.status === "favorite")
+      .map((reaction) => memberNames.get(reaction.member_id))
+      .filter(Boolean);
+    const pollVoteCount = pollVotes.get(entry.id) || 0;
+    if (!favoriteMembers.length && !pollVoteCount && !chosenNameIds.has(entry.id)) continue;
+
+    result[entry.gender_list].push({
+      id: entry.id,
+      name: entry.name,
+      native: entry.script || "",
+      origin: entry.origin,
+      meaning: entry.meaning,
+      type: entry.gender_list,
+      isCustom: entry.is_custom,
+      suggestedBy: entry.created_by ? memberNames.get(entry.created_by) || "Family member" : "Nomi",
+      favoriteCount: favoriteMembers.length,
+      favoriteMembers,
+      pollVoteCount,
+    });
+  }
+
+  for (const type of ["boy", "girl"]) {
+    result[type].sort((a, b) => b.favoriteCount - a.favoriteCount || b.pollVoteCount - a.pollVoteCount || a.name.localeCompare(b.name));
+  }
+  for (const choice of choicesResult.data || []) {
+    result.choices[choice.gender_list] = {
+      ...choice,
+      chosenByName: choice.chosen_by ? memberNames.get(choice.chosen_by) || "Family member" : "the family",
+    };
+  }
+  return result;
+}
+
+export async function chooseFamilyFinalName({ familyId, nameEntryId, type }) {
+  const client = requireSupabase();
+  const { error } = await client.rpc("choose_family_final_name", {
+    p_family_id: familyId,
+    p_name_entry_id: nameEntryId,
+    p_gender_list: type,
+  });
+  if (error) throw error;
+}
+
+export async function reopenFamilyFinalChoice({ familyId, type }) {
+  const client = requireSupabase();
+  const { error } = await client.rpc("reopen_family_final_choice", {
+    p_family_id: familyId,
+    p_gender_list: type,
+  });
+  if (error) throw error;
+}
+
 export async function createFamilyName({ familyId, name, native = "", origin, meaning, type, isCustom = true }) {
   const client = requireSupabase();
   const { data, error } = await client.rpc("create_family_name", {
@@ -235,6 +316,20 @@ export function subscribeToFamilyNames(familyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "name_entries", filter: `family_id=eq.${familyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "name_reactions", filter: `family_id=eq.${familyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "family_members", filter: `family_id=eq.${familyId}` }, onChange)
+    .subscribe();
+
+  return () => { void client.removeChannel(channel); };
+}
+
+export function subscribeToFamilyShortlist(familyId, onChange) {
+  const client = requireSupabase();
+  const channel = client
+    .channel(`family-shortlist-${familyId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "name_entries", filter: `family_id=eq.${familyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "name_reactions", filter: `family_id=eq.${familyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "family_final_choices", filter: `family_id=eq.${familyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "poll_options" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, onChange)
     .subscribe();
 
   return () => { void client.removeChannel(channel); };

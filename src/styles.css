@@ -287,6 +287,64 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .community-poll.girl .poll-progress { background: rgba(255, 183, 10, 0.1); }
 .community-poll footer { margin-top: 13px; color: #67738a; font-size: 12px; font-weight: 800; }
 
+.shortlist-view { width: min(980px, 100%); }
+.shortlist-heading { max-width: 680px; margin: 0 auto 34px; text-align: center; }
+.shortlist-heading .eyebrow { justify-content: center; }
+.shortlist-heading h1 { max-width: none; }
+.shortlist-heading p { margin: 0 auto; max-width: 610px; color: #41506e; font-size: 18px; line-height: 1.6; }
+.shortlist-type-switcher {
+  width: min(580px, 100%); margin: 0 auto 25px; padding: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  border: 1px solid rgba(7, 27, 67, 0.1); border-radius: 15px; background: rgba(242, 235, 219, 0.82);
+}
+.shortlist-type-switcher button {
+  min-height: 48px; border: 0; border-radius: 11px; background: transparent; color: #5f6c84;
+  display: flex; align-items: center; justify-content: center; gap: 9px; font-weight: 900; cursor: pointer;
+}
+.shortlist-type-switcher button span { min-width: 25px; height: 25px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: rgba(7, 27, 67, 0.08); font-size: 11px; }
+.shortlist-type-switcher button.active { background: white; color: var(--teal-dark); box-shadow: 0 3px 10px rgba(7, 27, 67, 0.08); }
+.shortlist-type-switcher button:last-child.active { color: #966500; }
+.shortlist-stack { width: min(720px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.shortlist-card {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "rank name score" "rank people action";
+  align-items: center; gap: 10px 16px; padding: 18px; border: 1px solid rgba(7, 27, 67, 0.1); border-left: 5px solid var(--teal);
+  border-radius: 16px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 5px 0 rgba(7, 27, 67, 0.05), 0 10px 25px rgba(7, 27, 67, 0.07);
+}
+.shortlist-card.girl { border-left-color: var(--yellow); }
+.shortlist-rank { grid-area: rank; width: 42px; height: 42px; border-radius: 50%; background: rgba(4, 127, 131, 0.11); color: var(--teal-dark); display: grid; place-items: center; font-family: "Fredoka", sans-serif; font-size: 21px; font-weight: 700; }
+.shortlist-card.girl .shortlist-rank { background: rgba(255, 183, 10, 0.16); color: #946200; }
+.shortlist-name { grid-area: name; min-width: 0; }
+.shortlist-origin { display: block; margin-bottom: 1px; color: #536078; font-size: 9px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+.shortlist-name h2 { display: inline; margin: 0 8px 0 0; font-family: "Fredoka", sans-serif; font-size: 29px; font-weight: 600; }
+.shortlist-native { font-family: Arial, sans-serif; font-size: 22px; }
+.shortlist-name p { margin: 3px 0 0; color: #41506e; font-size: 13px; font-weight: 700; }
+.shortlist-score { grid-area: score; display: flex; gap: 8px; }
+.shortlist-score span { min-width: 53px; height: 34px; padding: 0 9px; border-radius: 999px; background: #f2eee4; display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: #526079; font-size: 12px; font-weight: 900; }
+.shortlist-score span:first-child { color: #b02f42; }
+.shortlist-people { grid-area: people; display: flex; flex-wrap: wrap; gap: 3px 14px; color: #59667e; font-size: 11px; }
+.shortlist-people strong { color: var(--ink); }
+.choose-final-button, .final-choice-card button {
+  min-height: 44px; border: 0; border-radius: 10px; padding: 0 14px; background: var(--yellow); color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer;
+}
+.choose-final-button { grid-area: action; justify-self: end; }
+.choose-final-button:disabled, .final-choice-card button:disabled { opacity: 0.55; cursor: wait; }
+.final-choice-card {
+  width: min(650px, 100%); margin: 0 auto; padding: 30px; border: 3px solid var(--teal); border-radius: 22px; background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.final-choice-card.girl { border-color: var(--yellow); }
+.final-choice-card > svg { color: var(--yellow-dark); }
+.final-choice-card > span { margin-top: 6px; color: #536078; font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+.final-choice-card h2 { margin: 9px 0 0; font-family: "Fredoka", sans-serif; font-size: 58px; line-height: 1; }
+.final-choice-card > strong { margin-top: 5px; font-family: Arial, sans-serif; font-size: 33px; }
+.final-choice-card p { margin: 12px 0 5px; color: #41506e; font-family: "Fredoka", sans-serif; font-size: 21px; }
+.final-choice-card small { color: #536078; font-weight: 800; }
+.final-choice-card button { margin-top: 22px; background: rgba(7, 27, 67, 0.08); }
+.shortlist-empty { width: min(650px, 100%); min-height: 210px; margin: 0 auto; padding: 26px; border: 2px dashed rgba(7, 27, 67, 0.16); border-radius: 18px; background: rgba(255, 255, 255, 0.54); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #536078; text-align: center; }
+.shortlist-empty h2 { margin: 3px 0 0; color: var(--ink); font-family: "Fredoka", sans-serif; font-size: 26px; }
+.shortlist-empty p { max-width: 460px; margin: 0; line-height: 1.5; }
+.shortlist-error { width: fit-content; max-width: 100%; margin: 0 auto 18px; padding: 8px 13px; border-radius: 999px; background: rgba(209, 61, 74, 0.1); color: #982833; font-size: 12px; font-weight: 900; text-align: center; }
+
 .create-poll-form fieldset { border: 0; padding: 0; margin: 23px 0; }
 .create-poll-form legend, .create-poll-form > label { display: block; margin-bottom: 9px; font-weight: 900; }
 .create-poll-form > label small { margin-left: 5px; color: #788398; font-weight: 700; }
@@ -375,7 +433,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
     background: #fffdf7;
     box-shadow: 0 10px 35px rgba(7, 27, 67, 0.22);
   }
-  .topbar nav button { min-width: 76px; min-height: 56px; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 10px; font-size: 11px; }
+  .topbar nav button { min-width: 0; min-height: 56px; flex: 1; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 3px; font-size: 10px; }
   .topbar nav span { display: block; }
   .topbar nav button::after { bottom: 0; }
   .privacy-banner { width: 100%; margin: 12px 0 24px; padding: 10px 12px; justify-content: center; gap: 10px; border-radius: 14px; font-size: 12px; }
@@ -438,6 +496,22 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .poll-choice { min-height: 57px; }
   .poll-choice-copy strong { font-size: 19px; }
   .poll-choice-copy em { font-size: 17px; }
+  .shortlist-heading { margin-bottom: 22px; }
+  .shortlist-heading h1 { font-size: 38px; }
+  .shortlist-heading p { font-size: 15px; line-height: 1.45; }
+  .shortlist-type-switcher { margin-bottom: 16px; }
+  .shortlist-type-switcher button { min-height: 44px; padding: 5px; font-size: 12px; }
+  .shortlist-card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "rank name score" "people people people" "action action action"; gap: 10px 11px; padding: 14px; border-left-width: 4px; }
+  .shortlist-rank { width: 37px; height: 37px; font-size: 18px; }
+  .shortlist-name h2 { font-size: 25px; }
+  .shortlist-native { font-size: 19px; }
+  .shortlist-score { gap: 4px; }
+  .shortlist-score span { min-width: 43px; height: 31px; padding: 0 7px; }
+  .shortlist-people { padding-top: 2px; }
+  .choose-final-button { width: 100%; }
+  .final-choice-card { padding: 25px 18px; }
+  .final-choice-card h2 { font-size: 48px; }
+  .shortlist-empty { min-height: 190px; padding: 22px 18px; }
   .dialog-backdrop { align-items: end; padding: 0; }
   .dialog { width: 100%; max-height: 88dvh; overflow-y: auto; border-radius: 24px 24px 0 0; padding: 25px 20px calc(25px + env(safe-area-inset-bottom)); }
   .dialog h2 { font-size: 27px; }

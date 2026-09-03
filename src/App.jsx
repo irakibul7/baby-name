@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import {
-  Baby, CheckCircle, Copy, Flask, Heart, ListBullets,
+  ArrowCounterClockwise, Baby, CheckCircle, Copy, Crown, Flask, Heart, ListBullets,
   LockKey, MagicWand, MagnifyingGlass, PencilSimple, Plus, ShareNetwork,
-  Sparkle, Star, Trash, UserPlus, UsersThree, X,
+  Sparkle, Star, Trash, Trophy, UserPlus, UsersThree, X,
 } from "@phosphor-icons/react";
 import {
   castFamilyPollVote,
+  chooseFamilyFinalName,
   createFamilyName,
   createFamilyPoll,
   deleteFamilyName,
@@ -14,11 +15,14 @@ import {
   fetchFamilyMemberCount,
   fetchFamilyNames,
   fetchFamilyPolls,
+  fetchFamilyShortlist,
   isSupabaseConfigured,
   joinFamily,
+  reopenFamilyFinalChoice,
   setFamilyNameReaction,
   subscribeToFamilyNames,
   subscribeToFamilyPolls,
+  subscribeToFamilyShortlist,
   updateFamilyName,
 } from "./lib/supabase";
 
@@ -204,6 +208,148 @@ function PollCard({ poll, candidates, onVote, disabled = false }) {
       </div>
       <footer aria-live="polite">{hasVoted ? "Thanks — your vote is in." : `${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} · Choose one name`}</footer>
     </article>
+  );
+}
+
+function ShortlistCard({ candidate, rank, onChoose, disabled }) {
+  const likedBy = candidate.favoriteMembers.length
+    ? candidate.favoriteMembers.join(", ")
+    : "Waiting for family favorites";
+  return (
+    <article className={`shortlist-card ${candidate.type}`}>
+      <span className="shortlist-rank" aria-label={`Rank ${rank}`}>{rank}</span>
+      <div className="shortlist-name">
+        <span className="shortlist-origin">{candidate.origin}</span>
+        <h2 dir="auto">{candidate.name}</h2>
+        {candidate.native ? <span className="shortlist-native" dir="rtl" lang={candidate.origin === "Arabic" ? "ar" : "fa"}>{candidate.native}</span> : null}
+        <p>{candidate.meaning}</p>
+      </div>
+      <div className="shortlist-score" aria-label={`${candidate.favoriteCount} favorites and ${candidate.pollVoteCount} poll votes`}>
+        <span><Heart size={18} weight="fill" /> {candidate.favoriteCount}</span>
+        <span><CheckCircle size={18} weight="fill" /> {candidate.pollVoteCount}</span>
+      </div>
+      <div className="shortlist-people">
+        <span><strong>Liked by</strong> {likedBy}</span>
+        <span><strong>Suggested by</strong> {candidate.suggestedBy}</span>
+      </div>
+      <button className="choose-final-button" onClick={() => onChoose(candidate)} disabled={disabled}>
+        <Crown size={20} weight="fill" /> Choose this name
+      </button>
+    </article>
+  );
+}
+
+function Shortlist({ familySession }) {
+  const [shortlist, setShortlist] = useState({ boy: [], girl: [], choices: {} });
+  const [activeType, setActiveType] = useState("boy");
+  const [candidateToChoose, setCandidateToChoose] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (familySession.status !== "ready" || !familySession.familyId) return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const nextShortlist = await fetchFamilyShortlist(familySession.familyId);
+        if (cancelled) return;
+        setShortlist(nextShortlist);
+        setError("");
+      } catch (refreshError) {
+        if (!cancelled) setError(refreshError.message || "Could not load the family shortlist.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void refresh();
+    const unsubscribe = subscribeToFamilyShortlist(familySession.familyId, refresh);
+    return () => { cancelled = true; unsubscribe(); };
+  }, [familySession.status, familySession.familyId]);
+
+  const refresh = async () => {
+    if (!familySession.familyId) return;
+    setShortlist(await fetchFamilyShortlist(familySession.familyId));
+  };
+  const confirmChoice = async () => {
+    if (!candidateToChoose || !familySession.familyId) return;
+    try {
+      setSaving(true);
+      await chooseFamilyFinalName({ familyId: familySession.familyId, nameEntryId: candidateToChoose.id, type: candidateToChoose.type });
+      await refresh();
+      setCandidateToChoose(null);
+      setError("");
+    } catch (saveError) {
+      setError(saveError.message || "Could not save the final choice.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const reopenChoice = async () => {
+    if (!familySession.familyId) return;
+    try {
+      setSaving(true);
+      await reopenFamilyFinalChoice({ familyId: familySession.familyId, type: activeType });
+      await refresh();
+      setError("");
+    } catch (saveError) {
+      setError(saveError.message || "Could not reopen this shortlist.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const candidates = shortlist[activeType];
+  const finalChoice = shortlist.choices[activeType];
+  const winner = finalChoice ? candidates.find((candidate) => candidate.id === finalChoice.name_entry_id) : null;
+
+  return (
+    <section className="feature-view shortlist-view">
+      <header className="shortlist-heading">
+        <span className="eyebrow"><Trophy size={19} weight="fill" /> Family shortlist</span>
+        <h1>The names everyone loves.</h1>
+        <p>Favorites and poll votes come together here, so your family can see the strongest names at a glance.</p>
+      </header>
+
+      <div className="shortlist-type-switcher" role="tablist" aria-label="Choose a shortlist">
+        {[{ type: "boy", label: "Boy finalists" }, { type: "girl", label: "Girl finalists" }].map((item) => (
+          <button key={item.type} role="tab" aria-selected={activeType === item.type} className={activeType === item.type ? "active" : ""} onClick={() => setActiveType(item.type)}>
+            {item.label}<span>{shortlist[item.type].length}</span>
+          </button>
+        ))}
+      </div>
+
+      {error ? <p className="shortlist-error" role="alert">{error}</p> : null}
+      {loading ? <div className="shortlist-empty" role="status"><Sparkle size={28} weight="duotone" /><p>Gathering the family favorites…</p></div> : null}
+
+      {!loading && winner ? <section className={`final-choice-card ${activeType}`} aria-live="polite">
+        <Crown size={31} weight="fill" aria-hidden="true" />
+        <span>Family choice · {activeType}</span>
+        <h2 dir="auto">{winner.name}</h2>
+        {winner.native ? <strong dir="rtl" lang={winner.origin === "Arabic" ? "ar" : "fa"}>{winner.native}</strong> : null}
+        <p>{winner.meaning}</p>
+        <small>Chosen by {finalChoice.chosenByName}</small>
+        <button onClick={reopenChoice} disabled={saving}><ArrowCounterClockwise size={19} weight="bold" /> {saving ? "Reopening…" : "Reopen shortlist"}</button>
+      </section> : null}
+
+      {!loading && !winner && candidates.length ? <div className="shortlist-stack">
+        {candidates.map((candidate, index) => <ShortlistCard key={candidate.id} candidate={candidate} rank={index + 1} onChoose={setCandidateToChoose} disabled={saving} />)}
+      </div> : null}
+
+      {!loading && !winner && !candidates.length ? <div className="shortlist-empty">
+        <Heart size={30} weight="duotone" />
+        <h2>No {activeType} finalists yet</h2>
+        <p>Favorite names in Our Lists or vote in Family Polls. The strongest choices will appear here automatically.</p>
+      </div> : null}
+
+      {candidateToChoose ? <Dialog title={`Choose ${candidateToChoose.name}?`} onClose={() => setCandidateToChoose(null)}>
+        <p className="dialog-copy">This marks <strong dir="auto">{candidateToChoose.name}</strong> as the family’s final {candidateToChoose.type} choice. You can reopen the shortlist later without losing favorites or poll votes.</p>
+        <div className="delete-dialog-actions">
+          <button className="secondary-dialog-button" onClick={() => setCandidateToChoose(null)}>Keep deciding</button>
+          <button className="primary-button" onClick={confirmChoice} disabled={saving}><Crown size={19} weight="fill" /> {saving ? "Choosing…" : "Choose name"}</button>
+        </div>
+      </Dialog> : null}
+    </section>
   );
 }
 
@@ -613,6 +759,7 @@ export function App() {
   };
   const navItems = [
     { id: "lists", label: "Our Lists", icon: ListBullets },
+    { id: "shortlist", label: "Shortlist", icon: Trophy },
     { id: "lab", label: "Name Lab", icon: Flask },
     { id: "poll", label: "Family Polls", icon: UsersThree },
   ];
@@ -734,6 +881,7 @@ export function App() {
         </section>
       </>}
 
+      {activeView === "shortlist" && <Shortlist familySession={familySession} />}
       {activeView === "lab" && <NameLab onSave={saveGenerated} />}
       {activeView === "poll" && <FamilyPoll names={names} familySession={familySession} />}
       <div className="mobile-nav-spacer" aria-hidden="true" />
