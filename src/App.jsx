@@ -99,7 +99,7 @@ function NameLane({ type, title, names, activeId, onToggle, onAdd, isMobileActiv
               {item.native && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
               <small>{item.origin}</small>
             </span>
-            <Star size={27} weight={item.liked ? "fill" : "regular"} />
+            <span className="star-tap-target" aria-hidden="true"><Star size={27} weight={item.liked ? "fill" : "regular"} /></span>
           </button>
         ))}
       </div>
@@ -616,6 +616,7 @@ export function App() {
 
       {activeView === "lab" && <NameLab onSave={saveGenerated} />}
       {activeView === "poll" && <FamilyPoll names={names} userName={userName} />}
+      <div className="mobile-nav-spacer" aria-hidden="true" />
 
       {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
         <form className="add-form" onSubmit={addName}>
