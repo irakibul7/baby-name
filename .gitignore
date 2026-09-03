@@ -8,7 +8,8 @@ dist/
 .DS_Store
 *.log
 
-.openai/
+.openai/*
+!.openai/hosting.json
 /AGENTS.md
 /*.jpg
 /reference-option-2.png
