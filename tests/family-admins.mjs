@@ -1,0 +1,62 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile, readdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db = new PGlite();
+await db.exec(`create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated; create publication supabase_realtime;`);
+const dir=new URL('../supabase/migrations/', import.meta.url); 
+for(const f of (await readdir(dir)).filter(f=>f.endsWith('.sql')).sort()) {
+ let sql=await readFile(new URL(f, dir),'utf8');
+ sql=sql.replace('create extension if not exists pgcrypto;','');
+ await db.exec(sql);
+}
+console.log('All migrations applied in isolated PostgreSQL (PGlite).');
+const ids=Array.from({length:4},(_,i)=>`00000000-0000-4000-8000-00000000000${i+1}`);
+for(const id of ids) await db.query('insert into auth.users values ($1)',[id]);
+await db.exec("insert into public.families(code,name,invite_code) values ('TEST','Admin test','TEST'),('OTHR','Other family','OTHR')");
+async function asUser(id) { await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]); await db.exec('set role authenticated'); }
+const members=[];
+for(let i=0;i<4;i++){await asUser(ids[i]); const r=await db.query('select public.join_family($1,$2) as member',[i===3?'OTHR':'TEST',`Member ${i}`]);members.push(r.rows[0].member);}
+await db.exec('reset role');await db.query('update public.family_members set is_admin=true where id=$1',[members[0].member_id]);
+await asUser(ids[1]);
+await assert.rejects(db.query('select public.remove_family_member($1)',[members[2].member_id]),/Only a family admin/);
+await assert.rejects(db.query('update public.family_members set is_admin=true where id=$1',[members[1].member_id]),/permission denied/);
+const name=(await db.query("select public.create_family_name($1,'Test name','','Arabic','Test','boy',true) as id",[members[1].family_id])).rows[0].id;
+// Full family workflow against the same migrated database.
+const familyId = members[1].family_id;
+assert.equal((await db.query("select public.create_family_name($1,'test NAME','','Arabic','Test','boy',true) as id", [familyId])).rows[0].id, name);
+await db.query("select public.update_family_name($1,'Updated name','اسم','Arabic','Updated meaning','boy')", [name]);
+assert.equal((await db.query('select name from public.name_entries where id=$1', [name])).rows[0].name, 'Updated name');
+await db.query("select public.set_name_reaction($1,'favorite')", [name]);
+await db.query("select public.set_name_reaction($1,'passed')", [name]);
+assert.equal((await db.query('select status from public.name_reactions where name_entry_id=$1', [name])).rows[0].status, 'passed');
+await db.query("select public.set_name_reaction($1,'favorite')", [name]);
+await assert.rejects(db.query("select public.create_family_poll('TEST','boy','Choose',array['Same','same'])"), /two different/);
+const poll = (await db.query("select public.create_family_poll('TEST','boy','Choose',array['Updated name','Second name']) as id")).rows[0].id;
+const options = (await db.query('select id, name_entry_id from public.poll_options where poll_id=$1 order by sort_order', [poll])).rows;
+assert.equal(options.length, 2);
+assert.equal(options[0].name_entry_id, name);
+await db.query('select public.cast_poll_vote($1,$2)', [poll, options[0].id]);
+await assert.rejects(db.query('select public.cast_poll_vote($1,$2)', [poll, options[1].id]), /already voted/);
+await db.query("select public.choose_family_final_name($1,$2,'boy')", [familyId, name]);
+assert.equal((await db.query('select name_entry_id from public.family_final_choices where family_id=$1',[familyId])).rows[0].name_entry_id, name);
+await assert.rejects(db.query("select public.choose_family_final_name($1,$2,'girl')",[familyId,name]), /not available/);
+await db.query("select public.reopen_family_final_choice($1,'boy')", [familyId]);
+assert.equal((await db.query('select * from public.family_final_choices where family_id=$1',[familyId])).rows.length,0);
+await asUser(ids[3]);
+assert.equal((await db.query('select * from public.name_entries where family_id=$1',[familyId])).rows.length,0);
+await assert.rejects(db.query('select public.cast_poll_vote($1,$2)', [poll, options[1].id]), /unavailable/);
+await assert.rejects(db.query("select public.choose_family_final_name($1,$2,'boy')", [familyId,name]), /membership/);
+await assert.rejects(db.query("select public.update_family_name($1,'Intruder','','Arabic','Test','boy')",[name]), /Only the creator/);
+await asUser(ids[1]);
+console.log('PASS: name create/edit/deduplication, favorite/pass persistence, poll creation/validation/voting, duplicate-vote prevention, final choice/reopen, and cross-family access denial.');
+await asUser(ids[2]);await assert.rejects(db.query('select public.delete_family_name($1)',[name]),/Only an admin or the creator/);
+await asUser(ids[0]);
+assert.equal((await db.query('select public.is_family_admin($1) as admin',[members[0].family_id])).rows[0].admin,true);
+await assert.rejects(db.query('select public.remove_family_member($1)',[members[0].member_id]),/cannot remove/);
+await assert.rejects(db.query('select public.remove_family_member($1)',[members[3].member_id]),/Only a family admin/);
+await db.query('select public.delete_family_name($1)',[name]);
+await db.query('select public.remove_family_member($1)',[members[2].member_id]);
+await asUser(ids[2]);assert.equal((await db.query('select public.is_family_member($1) as member',[members[2].family_id])).rows[0].member,false);
+await assert.rejects(db.query("select public.join_family('TEST','Return')"),/access.*removed/);
+console.log('PASS: admin authorization, cross-family denial, self-removal denial, role escalation denial, name deletion, member removal, membership revocation, and rejoin prevention.');
+await db.close();

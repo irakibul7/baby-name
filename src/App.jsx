@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowCounterClockwise, Baby, CheckCircle, Copy, Crown, Flask, Heart, ListBullets,
   LockKey, MagicWand, MagnifyingGlass, PencilSimple, Plus, ShareNetwork,
@@ -13,6 +13,9 @@ import {
   ensureAnonymousUser,
   familyCode,
   fetchFamilyMemberCount,
+  fetchFamilyMembers,
+  fetchFamilyAdminStatus,
+  removeFamilyMember,
   fetchFamilyNames,
   fetchFamilyPolls,
   fetchFamilyShortlist,
@@ -21,6 +24,7 @@ import {
   reopenFamilyFinalChoice,
   setFamilyNameReaction,
   subscribeToFamilyNames,
+  subscribeToFamilyMembers,
   subscribeToFamilyPolls,
   subscribeToFamilyShortlist,
   updateFamilyName,
@@ -62,7 +66,7 @@ function firstUnreviewedIndexes(names) {
 
 const USER_NAME_STORAGE_KEY = "nomi-display-name-v1";
 
-function NameLane({ type, title, names, activeId, memberId, onToggle, onAdd, onEdit, onDelete, isMobileActive = true }) {
+function NameLane({ type, title, names, activeId, memberId, isAdmin, onToggle, onAdd, onEdit, onDelete, isMobileActive = true }) {
   return (
     <section className={`name-lane ${type} ${isMobileActive ? "" : "mobile-inactive"}`} aria-labelledby={`${type}-heading`} id={`${type}-list-panel`}>
       <div className="lane-heading">
@@ -71,20 +75,22 @@ function NameLane({ type, title, names, activeId, memberId, onToggle, onAdd, onE
       </div>
       <div className="lane-rule" aria-hidden="true"><span /><Star size={18} weight="fill" /><span /></div>
       <div className="name-list">
+        {names.length === 0 ? <p className="empty-name-list">Add a {type} name to start this list.</p> : null}
         {names.map((item) => {
           const canManage = item.isCustom && item.createdBy === memberId;
+          const canDelete = canManage || isAdmin;
           return (
             <article className={`name-row ${activeId === item.id ? "active" : ""}`} key={item.id}>
               <button className="name-row-main" onClick={() => onToggle(item.id)} aria-pressed={item.liked}>
                 <span className="name-identity">
                   <b>{item.name}</b>
-                  {item.native && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
+                  {item.native && item.native.trim().toLocaleLowerCase() !== item.origin?.trim().toLocaleLowerCase() && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
                   <small>{item.origin}</small>
                 </span>
                 <span className="star-tap-target" aria-hidden="true"><Star size={27} weight={item.liked ? "fill" : "regular"} /></span>
               </button>
-              {canManage ? <div className="name-row-actions">
-                <button onClick={() => onEdit(item, type)} aria-label={`Edit ${item.name}`}><PencilSimple size={18} weight="bold" /></button>
+              {canDelete ? <div className="name-row-actions">
+                {canManage ? <button onClick={() => onEdit(item, type)} aria-label={`Edit ${item.name}`}><PencilSimple size={18} weight="bold" /></button> : null}
                 <button onClick={() => onDelete(item, type)} aria-label={`Delete ${item.name}`}><Trash size={18} weight="bold" /></button>
               </div> : null}
             </article>
@@ -99,9 +105,32 @@ function NameLane({ type, title, names, activeId, memberId, onToggle, onAdd, onE
 }
 
 function Dialog({ title, children, onClose }) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const panel = dialogRef.current;
+    const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, [tabindex="0"]')].filter((element) => !element.disabled && element.getClientRects().length);
+    if (!panel.contains(document.activeElement)) (focusable()[0] || panel).focus();
+    const handleKey = (event) => {
+      if (event.key === "Escape" && closeRef.current) { event.preventDefault(); closeRef.current(); }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0] || panel;
+      const last = items[items.length - 1] || panel;
+      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("keydown", handleKey); previousFocus?.focus(); };
+  }, []);
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose || undefined}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} tabIndex={-1} className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-heading">
           <h2 id="dialog-title">{title}</h2>
           {onClose ? <button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={22} weight="bold" /></button> : null}
@@ -110,6 +139,58 @@ function Dialog({ title, children, onClose }) {
       </section>
     </div>
   );
+}
+
+function FamilyMembersDialog({ familyId, memberId, isAdmin, onClose }) {
+  const [members, setMembers] = useState(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [removing, setRemoving] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const removeMember = async () => {
+    setRemoving(true);
+    try {
+      await removeFamilyMember(selectedMember.id);
+      setMembers((current) => current.filter((member) => member.id !== selectedMember.id));
+      setSelectedMember(null);
+      setError("");
+    } catch (failure) { setError(failure.message || "Could not remove this member."); }
+    finally { setRemoving(false); }
+  };
+  useEffect(() => {
+    let cancelled = false;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || cancelled) return;
+      pending = true;
+      try {
+        const result = await fetchFamilyMembers(familyId);
+        if (!cancelled) { setMembers(result); setError(""); }
+      } catch {
+        if (!cancelled) setError("Could not load family members. Please try again.");
+      } finally { pending = false; }
+    };
+    void refresh();
+    const unsubscribe = subscribeToFamilyMembers(familyId, refresh);
+    const interval = window.setInterval(refresh, 30000);
+    return () => { cancelled = true; unsubscribe(); window.clearInterval(interval); };
+  }, [familyId, retry]);
+  return <Dialog title="Your family" onClose={onClose}>
+    <p className="dialog-copy">Everyone who has joined this family space.</p>
+    {error ? <div role="alert"><p>{error}</p><button className="secondary-dialog-button" onClick={() => setRetry((value) => value + 1)}>Try again</button></div> : null}
+    {members === null && !error ? <p role="status">Loading members…</p> : null}
+    {members?.length === 0 ? <p>No family members have joined yet.</p> : null}
+    {selectedMember ? <div className="member-removal-confirmation">
+      <p>Remove <strong>{selectedMember.display_name}</strong> from this family? Their votes and reactions will be removed. Names they suggested will remain.</p>
+      <div className="delete-dialog-actions"><button className="secondary-dialog-button" disabled={removing} onClick={() => setSelectedMember(null)}>Cancel</button><button className="danger-button" disabled={removing} onClick={removeMember}>{removing ? "Removing…" : "Remove member"}</button></div>
+    </div> : null}
+    {members?.length ? <ul className="family-member-list">{members.map((member) => <li key={member.id}>
+      <span className="member-avatar" aria-hidden="true">{(member.display_name?.trim() || "Family member").slice(0, 1).toLocaleUpperCase()}</span>
+      <span className="member-name">{member.display_name?.trim() || "Family member"}</span>
+      {member.id === memberId ? <span className="member-you">You</span> : null}
+      {isAdmin && member.id !== memberId && !member.is_admin ? <button className="icon-button" disabled={removing} onClick={() => setSelectedMember(member)} aria-label={`Remove ${member.display_name || "family member"}`}><Trash size={18} /></button> : null}
+    </li>)}</ul> : null}
+  </Dialog>;
 }
 
 function NameSearch({ names, query, onQueryChange, onSelect }) {
@@ -515,7 +596,8 @@ export function App() {
     userId: null,
     familyId: null,
     memberId: null,
-    memberCount: 0,
+    memberCount: null,
+    isAdmin: false,
     error: isSupabaseConfigured ? "" : "Supabase is not configured.",
   });
   const [familyActionError, setFamilyActionError] = useState("");
@@ -534,6 +616,7 @@ export function App() {
   const [editDraft, setEditDraft] = useState({ name: "", native: "", meaning: "", origin: "Arabic", type: "boy" });
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const [mobileLane, setMobileLane] = useState("boy");
   const currentBoy = names.boy.length ? names.boy[swipeIndexes.boy % names.boy.length] : null;
   const currentGirl = names.girl.length ? names.girl[swipeIndexes.girl % names.girl.length] : null;
@@ -550,9 +633,10 @@ export function App() {
         if (!context?.family_id || !context?.member_id) {
           throw new Error("Run the latest Supabase migration before using shared family data.");
         }
-        const [familyNames, memberCount] = await Promise.all([
+        const [familyNames, memberCount, isAdmin] = await Promise.all([
           fetchFamilyNames(context.family_id, context.member_id),
           fetchFamilyMemberCount(context.family_id),
+          fetchFamilyAdminStatus(context.family_id),
         ]);
         if (cancelled) return;
         setNames(familyNames);
@@ -563,6 +647,7 @@ export function App() {
           familyId: context.family_id,
           memberId: context.member_id,
           memberCount,
+          isAdmin,
           error: "",
         });
       } catch (error) {
@@ -580,13 +665,9 @@ export function App() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const [familyNames, memberCount] = await Promise.all([
-          fetchFamilyNames(familySession.familyId, familySession.memberId),
-          fetchFamilyMemberCount(familySession.familyId),
-        ]);
+        const familyNames = await fetchFamilyNames(familySession.familyId, familySession.memberId);
         if (cancelled) return;
         setNames(familyNames);
-        setFamilySession((current) => ({ ...current, memberCount, error: "" }));
         setFamilyActionError("");
       } catch (error) {
         if (!cancelled) setFamilyActionError(error.message || "Could not refresh family names.");
@@ -595,6 +676,39 @@ export function App() {
     const unsubscribe = subscribeToFamilyNames(familySession.familyId, refresh);
     return () => { cancelled = true; unsubscribe(); };
   }, [familySession.status, familySession.familyId, familySession.memberId]);
+
+  useEffect(() => {
+    if (familySession.status !== "ready" || !familySession.familyId) return undefined;
+    let cancelled = false;
+    let refreshing = false;
+    const refreshCount = async () => {
+      if (cancelled || refreshing) return;
+      refreshing = true;
+      try {
+        const [memberCount, isAdmin] = await Promise.all([fetchFamilyMemberCount(familySession.familyId), fetchFamilyAdminStatus(familySession.familyId)]);
+        if (!cancelled) setFamilySession((current) => ({ ...current, memberCount, isAdmin }));
+      } catch {
+        // Keep the last confirmed count; retry on the next event or interval.
+      } finally {
+        refreshing = false;
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshCount();
+    };
+    const unsubscribe = subscribeToFamilyMembers(familySession.familyId, refreshCount);
+    const interval = window.setInterval(refreshWhenVisible, 30000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    void refreshCount();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [familySession.status, familySession.familyId]);
 
   const refreshNames = async () => {
     if (!familySession.familyId || !familySession.memberId) return;
@@ -621,6 +735,7 @@ export function App() {
     }
   };
   const openAddDialog = (type) => {
+    setFamilyActionError("");
     setNewNameType(type);
     setNewName("");
     setNewNameNative("");
@@ -631,7 +746,8 @@ export function App() {
   const addName = async (event) => {
     event.preventDefault();
     const cleanName = newName.trim();
-    if (!cleanName || !familySession.familyId) return;
+    if (!cleanName) { setFamilyActionError("Please enter a name."); return; }
+    if (!familySession.familyId) return;
     try {
       setSavingName(true);
       const nameId = await createFamilyName({
@@ -752,7 +868,17 @@ export function App() {
   };
   const cancelSwipe = () => { setDragStart(null); setDragX(0); };
   const inviteUrl = `${window.location.origin}/join/${familyCode}`;
-  const copyInvite = async () => { await navigator.clipboard?.writeText(inviteUrl); setCopied(true); };
+  const copyInvite = async () => {
+    setCopied(false);
+    setCopyError("");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+    } catch {
+      setCopyError("Could not copy automatically. Select and copy the invite link above.");
+    }
+  };
   const changeView = (view) => {
     setActiveView(view);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -783,8 +909,8 @@ export function App() {
   if (!userName) {
     return (
       <main className="app-shell onboarding-shell">
-        <div className="onboarding-brand" aria-hidden="true">Nomi <Star size={25} weight="fill" /></div>
-        <Dialog title="Welcome to Nomi">
+        <div className="onboarding-brand" aria-hidden="true">Baby Bloom <Star size={25} weight="fill" /></div>
+        <Dialog title="Welcome to Baby Bloom">
           <form className="user-name-form" onSubmit={saveUserName}>
             <p className="dialog-copy">No email or password. Just add your name so family members know who created each poll.</p>
             <label htmlFor="user-name">What should we call you?</label>
@@ -810,7 +936,7 @@ export function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => changeView("lists")} aria-label="Nomi home">Nomi <Star size={25} weight="fill" /></button>
+        <button className="brand" onClick={() => changeView("lists")} aria-label="Baby Bloom home">Baby Bloom <Star size={25} weight="fill" /></button>
         <nav aria-label="Primary navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
             <button key={id} className={activeView === id ? "active" : ""} aria-current={activeView === id ? "page" : undefined} onClick={() => changeView(id)}>
@@ -818,19 +944,19 @@ export function App() {
             </button>
           ))}
         </nav>
-        <button className="invite-button" onClick={() => setDialog("invite")} aria-label="Invite Family"><UserPlus size={23} weight="bold" /><span>Invite Family</span></button>
+        <button className="invite-button" onClick={() => { setCopied(false); setCopyError(""); setDialog("invite"); }} aria-label="Invite Family"><UserPlus size={23} weight="bold" /><span>Invite Family</span></button>
       </header>
 
       {activeView === "lists" && <>
         <div className="privacy-banner">
           <span><LockKey size={22} weight="bold" /> Gender stays a surprise</span><i aria-hidden="true" />
-          <span className="member-status"><UsersThree size={25} weight="bold" /><span className="member-long">{familySession.memberCount} family {familySession.memberCount === 1 ? "member has" : "members have"} joined</span><span className="member-short">{familySession.memberCount} joined</span></span>
+          <button className="member-status" onClick={() => setDialog("members")} disabled={!familySession.familyId} aria-haspopup="dialog" aria-label={familySession.memberCount === null ? "View family members" : `View ${familySession.memberCount} family members`}><UsersThree size={25} weight="bold" />{familySession.memberCount === null ? <span>{familySession.status === "error" ? "Count unavailable" : "Loading members…"}</span> : <><span className="member-long">{familySession.memberCount} family {familySession.memberCount === 1 ? "member has" : "members have"} joined</span><span className="member-short">{familySession.memberCount} joined</span></>}</button>
         </div>
         {familySession.status !== "ready" ? <div className={`family-sync-status ${familySession.status}`} role="status">{familySession.status === "connecting" ? "Loading your shared family space…" : "Family data is unavailable. Please check the Supabase setup."}</div> : null}
-        {familyActionError ? <div className="family-action-error" role="alert">{familyActionError}</div> : null}
+        {familyActionError && !dialog ? <div className="family-action-error" role="alert">{familyActionError}</div> : null}
         <NameSearch names={names} query={searchQuery} onQueryChange={setSearchQuery} onSelect={selectSearchResult} />
         <section className="match-layout">
-          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} memberId={familySession.memberId} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "boy"} />
+          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
             <h1 id="match-heading">Swipe your way<br />to a favorite</h1>
@@ -868,7 +994,7 @@ export function App() {
                   <p>{currentSwipeName.meaning}</p>
                 </div>
                 <span className="swipe-card-hint">Drag the card left or right</span>
-              </article> : <div className="swipe-card swipe-card-loading" role="status"><Sparkle size={30} weight="duotone" /><strong>{familySession.status === "error" ? "Names unavailable" : "Loading names…"}</strong></div>}
+              </article> : <div className="swipe-card swipe-card-loading" role="status"><Sparkle size={30} weight="duotone" /><strong>{familySession.status === "error" ? "Names unavailable" : familySession.status === "ready" ? `Add your first ${mobileLane} name` : "Loading names…"}</strong>{familySession.status === "ready" ? <p>Names appear here when your family adds or saves them.</p> : null}</div>}
             </div>
             <div className="swipe-actions" aria-label="Choose this name">
               <button className="swipe-action pass" onClick={() => performSwipe("left")} disabled={Boolean(swipeDirection) || !currentSwipeName}><X size={28} weight="bold" /><span>Pass</span></button>
@@ -877,7 +1003,7 @@ export function App() {
             <p className="swipe-help"><span>← Swipe left to pass</span><span>Swipe right to favorite →</span></p>
             <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
-          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} memberId={familySession.memberId} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "girl"} />
+          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "girl"} />
         </section>
       </>}
 
@@ -886,14 +1012,16 @@ export function App() {
       {activeView === "poll" && <FamilyPoll names={names} familySession={familySession} />}
       <div className="mobile-nav-spacer" aria-hidden="true" />
 
-      {dialog === "add" && <Dialog title="Add a name you love" onClose={() => setDialog(null)}>
+      {dialog === "members" && <FamilyMembersDialog familyId={familySession.familyId} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onClose={() => setDialog(null)} />}
+
+      {dialog === "add" && <Dialog title="Add a name you love" onClose={() => { setFamilyActionError(""); setDialog(null); }}>
         <form className="add-form" onSubmit={addName}>
           <label htmlFor="new-name">Name</label>
-          <input id="new-name" dir="auto" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Type a name in either script" />
+          <input id="new-name" maxLength={80} dir="auto" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Type a name in either script" />
           <label htmlFor="new-name-native">Native script <small>optional</small></label>
-          <input id="new-name-native" dir="auto" value={newNameNative} onChange={(event) => setNewNameNative(event.target.value)} placeholder="Arabic, Persian, Urdu, or Kurdish script" />
+          <input id="new-name-native" maxLength={80} dir="auto" value={newNameNative} onChange={(event) => setNewNameNative(event.target.value)} placeholder="Arabic, Persian, Urdu, or Kurdish script" />
           <label htmlFor="new-name-meaning">Meaning <small>optional</small></label>
-          <input id="new-name-meaning" value={newNameMeaning} onChange={(event) => setNewNameMeaning(event.target.value)} placeholder="What does the name mean?" />
+          <input id="new-name-meaning" maxLength={160} value={newNameMeaning} onChange={(event) => setNewNameMeaning(event.target.value)} placeholder="What does the name mean?" />
           <fieldset><legend>Add it to</legend><div className="type-choice">
             {[["boy", "Boy list"], ["girl", "Girl list"]].map(([value, label]) => <button type="button" key={value} className={newNameType === value ? "selected" : ""} onClick={() => setNewNameType(value)}>{label}</button>)}
           </div></fieldset>
@@ -908,11 +1036,11 @@ export function App() {
       {dialog === "edit" && selectedCustomName ? <Dialog title={`Edit ${selectedCustomName.name}`} onClose={() => setDialog(null)}>
         <form className="add-form" onSubmit={saveEditedName}>
           <label htmlFor="edit-name">Name</label>
-          <input id="edit-name" dir="auto" autoFocus value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} />
+          <input id="edit-name" maxLength={80} dir="auto" autoFocus value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} />
           <label htmlFor="edit-native">Native script <small>optional</small></label>
-          <input id="edit-native" dir="auto" value={editDraft.native} onChange={(event) => setEditDraft((current) => ({ ...current, native: event.target.value }))} />
+          <input id="edit-native" maxLength={80} dir="auto" value={editDraft.native} onChange={(event) => setEditDraft((current) => ({ ...current, native: event.target.value }))} />
           <label htmlFor="edit-meaning">Meaning</label>
-          <input id="edit-meaning" value={editDraft.meaning} onChange={(event) => setEditDraft((current) => ({ ...current, meaning: event.target.value }))} />
+          <input id="edit-meaning" maxLength={160} value={editDraft.meaning} onChange={(event) => setEditDraft((current) => ({ ...current, meaning: event.target.value }))} />
           <fieldset><legend>List</legend><div className="type-choice">
             {[["boy", "Boy list"], ["girl", "Girl list"]].map(([value, label]) => <button type="button" key={value} className={editDraft.type === value ? "selected" : ""} onClick={() => setEditDraft((current) => ({ ...current, type: value }))}>{label}</button>)}
           </div></fieldset>
@@ -935,7 +1063,8 @@ export function App() {
 
       {dialog === "invite" && <Dialog title="Bring your favorite people in" onClose={() => setDialog(null)}>
         <p className="dialog-copy">Anyone with this private link can suggest names and vote. The gender still stays hidden.</p>
-        <div className="invite-link"><span>{inviteUrl.replace(/^https?:\/\//, "")}</span><button onClick={copyInvite}>{copied ? <CheckCircle size={21} weight="fill" /> : <Copy size={21} weight="bold" />}{copied ? "Copied" : "Copy"}</button></div>
+        <div className="invite-link"><input aria-label="Family invite link" readOnly value={inviteUrl} onFocus={(event) => event.target.select()} /><button onClick={copyInvite}>{copied ? <CheckCircle size={21} weight="fill" /> : <Copy size={21} weight="bold" />}{copied ? "Copied" : "Copy"}</button></div>
+        {copyError ? <p className="poll-error" role="alert">{copyError}</p> : null}
         <button className="primary-button share-button" onClick={copyInvite}><ShareNetwork size={22} weight="bold" /> Share invite</button>
       </Dialog>}
     </main>

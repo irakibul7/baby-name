@@ -79,6 +79,9 @@ export async function fetchFamilyNames(familyId, memberId) {
   const result = { boy: [], girl: [] };
   for (const entry of data || []) {
     const reactions = entry.name_reactions || [];
+    // Seeded suggestions stay out of family lists until someone explicitly saves one.
+    // Saving an existing suggestion reuses its row and adds a favorite reaction.
+    if (!entry.created_by && !entry.is_custom && !reactions.some((reaction) => reaction.status === "favorite")) continue;
     const currentReaction = reactions.find((reaction) => reaction.member_id === memberId);
     result[entry.gender_list].push({
       id: entry.id,
@@ -94,6 +97,28 @@ export async function fetchFamilyNames(familyId, memberId) {
     });
   }
   return result;
+}
+
+export async function fetchFamilyAdminStatus(familyId) {
+  const { data, error } = await requireSupabase().rpc("is_family_admin", { p_family_id: familyId });
+  // Older databases remain usable until the admin migration is applied.
+  if (error?.code === "PGRST202") return false;
+  if (error) throw error;
+  return data === true;
+}
+
+export async function removeFamilyMember(memberId) {
+  const { error } = await requireSupabase().rpc("remove_family_member", { p_member_id: memberId });
+  if (error) throw error;
+}
+
+export async function fetchFamilyMembers(familyId) {
+  const client = requireSupabase();
+  const query = (fields) => client.from("family_members").select(fields).eq("family_id", familyId).order("joined_at", { ascending: true });
+  let result = await query("id, display_name, is_admin");
+  if (result.error?.code === "42703") result = await query("id, display_name");
+  if (result.error) throw result.error;
+  return result.data || [];
 }
 
 export async function fetchFamilyMemberCount(familyId) {
@@ -149,7 +174,7 @@ export async function fetchFamilyShortlist(familyId) {
       meaning: entry.meaning,
       type: entry.gender_list,
       isCustom: entry.is_custom,
-      suggestedBy: entry.created_by ? memberNames.get(entry.created_by) || "Family member" : "Nomi",
+      suggestedBy: entry.created_by ? memberNames.get(entry.created_by) || "Family member" : "Baby Bloom",
       favoriteCount: favoriteMembers.length,
       favoriteMembers,
       pollVoteCount,
@@ -315,8 +340,19 @@ export function subscribeToFamilyNames(familyId, onChange) {
     .channel(`family-names-${familyId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "name_entries", filter: `family_id=eq.${familyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "name_reactions", filter: `family_id=eq.${familyId}` }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "family_members", filter: `family_id=eq.${familyId}` }, onChange)
     .subscribe();
+
+  return () => { void client.removeChannel(channel); };
+}
+
+let memberSubscriptionId = 0;
+
+export function subscribeToFamilyMembers(familyId, onChange) {
+  const client = requireSupabase();
+  const channel = client
+    .channel(`family-members-${familyId}-${++memberSubscriptionId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "family_members", filter: `family_id=eq.${familyId}` }, onChange)
+    .subscribe((status) => { if (status === "SUBSCRIBED") onChange(); });
 
   return () => { void client.removeChannel(channel); };
 }
