@@ -57,6 +57,10 @@ const generatedNames = [
 
 const originOptions = ["Arabic", "Persian", "Turkish", "Urdu", "Kurdish"];
 
+function hasNativeName(item) {
+  return Boolean(item.native?.trim() && item.native.trim().toLocaleLowerCase() !== item.origin?.trim().toLocaleLowerCase());
+}
+
 function firstUnreviewedIndexes(names) {
   return {
     boy: Math.max(0, names.boy.findIndex((item) => !item.currentStatus)),
@@ -66,7 +70,7 @@ function firstUnreviewedIndexes(names) {
 
 const USER_NAME_STORAGE_KEY = "nomi-display-name-v1";
 
-function NameLane({ type, title, names, activeId, memberId, isAdmin, onToggle, onAdd, onEdit, onDelete, isMobileActive = true }) {
+function NameLane({ type, title, names, activeId, memberId, isAdmin, onToggle, onEdit, onDelete, isMobileActive = true }) {
   return (
     <section className={`name-lane ${type} ${isMobileActive ? "" : "mobile-inactive"}`} aria-labelledby={`${type}-heading`} id={`${type}-list-panel`}>
       <div className="lane-heading">
@@ -84,7 +88,7 @@ function NameLane({ type, title, names, activeId, memberId, isAdmin, onToggle, o
               <button className="name-row-main" onClick={() => onToggle(item.id)} aria-pressed={item.liked}>
                 <span className="name-identity">
                   <b>{item.name}</b>
-                  {item.native && item.native.trim().toLocaleLowerCase() !== item.origin?.trim().toLocaleLowerCase() && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
+                  {hasNativeName(item) && <span className="native-list-name" dir="rtl" lang={item.origin === "Arabic" ? "ar" : "fa"}>{item.native}</span>}
                   <small>{item.origin}</small>
                 </span>
                 <span className="star-tap-target" aria-hidden="true"><Star size={27} weight={item.liked ? "fill" : "regular"} /></span>
@@ -97,9 +101,6 @@ function NameLane({ type, title, names, activeId, memberId, isAdmin, onToggle, o
           );
         })}
       </div>
-      <button className="add-lane-button" onClick={() => onAdd(type)}>
-        <Plus size={24} weight="bold" /> Add your own
-      </button>
     </section>
   );
 }
@@ -193,7 +194,7 @@ function FamilyMembersDialog({ familyId, memberId, isAdmin, onClose }) {
   </Dialog>;
 }
 
-function NameSearch({ names, query, onQueryChange, onSelect }) {
+function NameSearch({ names, query, onQueryChange, onSelect, onAdd }) {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const results = normalizedQuery ? ["boy", "girl"].flatMap((type) => names[type]
     .filter((item) => [item.name, item.native, item.origin, item.meaning].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery)))
@@ -201,12 +202,15 @@ function NameSearch({ names, query, onQueryChange, onSelect }) {
 
   return (
     <section className="name-search" aria-label="Find a name">
-      <label htmlFor="name-search"><MagnifyingGlass size={21} weight="bold" /><span>Find a name</span></label>
+      <div className="name-search-heading">
+        <label htmlFor="name-search"><MagnifyingGlass size={21} weight="bold" /><span>Find a name</span></label>
+        <button className="quick-add-name" onClick={onAdd}><Plus size={18} weight="bold" /> Add name</button>
+      </div>
       <input id="name-search" type="search" dir="auto" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search name, meaning, or origin" />
       {normalizedQuery ? <div className="name-search-results" aria-live="polite">
         {results.length ? results.map((item) => (
           <button key={`${item.type}-${item.id}`} onClick={() => onSelect(item)}>
-            <span><strong dir="auto">{item.name}</strong>{item.native ? <em dir="rtl">{item.native}</em> : null}</span>
+            <span><strong dir="auto">{item.name}</strong>{hasNativeName(item) ? <em dir="rtl">{item.native}</em> : null}</span>
             <small>{item.type} · {item.origin}</small>
             <p>{item.meaning}</p>
           </button>
@@ -302,7 +306,7 @@ function ShortlistCard({ candidate, rank, onChoose, disabled }) {
       <div className="shortlist-name">
         <span className="shortlist-origin">{candidate.origin}</span>
         <h2 dir="auto">{candidate.name}</h2>
-        {candidate.native ? <span className="shortlist-native" dir="rtl" lang={candidate.origin === "Arabic" ? "ar" : "fa"}>{candidate.native}</span> : null}
+        {hasNativeName(candidate) ? <span className="shortlist-native" dir="rtl" lang={candidate.origin === "Arabic" ? "ar" : "fa"}>{candidate.native}</span> : null}
         <p>{candidate.meaning}</p>
       </div>
       <div className="shortlist-score" aria-label={`${candidate.favoriteCount} favorites and ${candidate.pollVoteCount} poll votes`}>
@@ -407,7 +411,7 @@ function Shortlist({ familySession }) {
         <Crown size={31} weight="fill" aria-hidden="true" />
         <span>Family choice · {activeType}</span>
         <h2 dir="auto">{winner.name}</h2>
-        {winner.native ? <strong dir="rtl" lang={winner.origin === "Arabic" ? "ar" : "fa"}>{winner.native}</strong> : null}
+        {hasNativeName(winner) ? <strong dir="rtl" lang={winner.origin === "Arabic" ? "ar" : "fa"}>{winner.native}</strong> : null}
         <p>{winner.meaning}</p>
         <small>Chosen by {finalChoice.chosenByName}</small>
         <button onClick={reopenChoice} disabled={saving}><ArrowCounterClockwise size={19} weight="bold" /> {saving ? "Reopening…" : "Reopen shortlist"}</button>
@@ -954,9 +958,9 @@ export function App() {
         </div>
         {familySession.status !== "ready" ? <div className={`family-sync-status ${familySession.status}`} role="status">{familySession.status === "connecting" ? "Loading your shared family space…" : "Family data is unavailable. Please check the Supabase setup."}</div> : null}
         {familyActionError && !dialog ? <div className="family-action-error" role="alert">{familyActionError}</div> : null}
-        <NameSearch names={names} query={searchQuery} onQueryChange={setSearchQuery} onSelect={selectSearchResult} />
+        <NameSearch names={names} query={searchQuery} onQueryChange={setSearchQuery} onSelect={selectSearchResult} onAdd={() => openAddDialog(mobileLane)} />
         <section className="match-layout">
-          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("boy", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "boy"} />
+          <NameLane type="boy" title="Boy Names" names={names.boy} activeId={currentBoy?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("boy", id)} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "boy"} />
           <section className="match-stage" aria-labelledby="match-heading">
             <div className="accent-rays" aria-hidden="true"><Sparkle size={32} weight="fill" /></div>
             <h1 id="match-heading">Swipe your way<br />to a favorite</h1>
@@ -989,7 +993,7 @@ export function App() {
                 <div className="swipe-card-topline"><span>{currentSwipeName.origin} · {mobileLane} name</span><small>{(swipeIndexes[mobileLane] % names[mobileLane].length) + 1} of {names[mobileLane].length}</small></div>
                 <div className="swipe-card-copy">
                   <strong>{currentSwipeName.name}</strong>
-                  {currentSwipeName.native && <span className="swipe-native" dir="rtl" lang={currentSwipeName.origin === "Arabic" ? "ar" : "fa"}>{currentSwipeName.native}</span>}
+                  {hasNativeName(currentSwipeName) && <span className="swipe-native" dir="rtl" lang={currentSwipeName.origin === "Arabic" ? "ar" : "fa"}>{currentSwipeName.native}</span>}
                   <i>Meaning</i>
                   <p>{currentSwipeName.meaning}</p>
                 </div>
@@ -1001,9 +1005,8 @@ export function App() {
               <button className="swipe-action favorite" onClick={() => performSwipe("right")} disabled={Boolean(swipeDirection) || !currentSwipeName}><Heart size={29} weight="fill" /><span>Favorite</span></button>
             </div>
             <p className="swipe-help"><span>← Swipe left to pass</span><span>Swipe right to favorite →</span></p>
-            <button className="secondary-button" onClick={() => openAddDialog(mobileLane)}><Plus size={21} weight="bold" /> Add your own</button>
           </section>
-          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("girl", id)} onAdd={openAddDialog} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "girl"} />
+          <NameLane type="girl" title="Girl Names" names={names.girl} activeId={currentGirl?.id} memberId={familySession.memberId} isAdmin={familySession.isAdmin} onToggle={(id) => toggleName("girl", id)} onEdit={openEditDialog} onDelete={openDeleteDialog} isMobileActive={mobileLane === "girl"} />
         </section>
       </>}
 

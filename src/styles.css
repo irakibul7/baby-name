@@ -183,7 +183,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .swipe-stamp { position: absolute; z-index: 2; top: 65px; padding: 5px 10px; border: 4px solid currentColor; border-radius: 8px; font-family: "Fredoka", sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; pointer-events: none; }
 .swipe-stamp.pass { left: 21px; color: #d13d4a; transform: rotate(-12deg); }
 .swipe-stamp.favorite { right: 16px; color: var(--teal); transform: rotate(11deg); }
-.swipe-actions { margin: 20px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.swipe-actions { margin: 32px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
 .swipe-action {
   min-width: 125px; min-height: 54px; padding: 0 18px; border-radius: 999px; background: white; display: flex; align-items: center; justify-content: center; gap: 8px;
   font-weight: 900; cursor: pointer; box-shadow: 0 4px 0 rgba(7, 27, 67, 0.08), 0 8px 18px rgba(7, 27, 67, 0.08);
@@ -198,7 +198,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 }
 
 .name-search { width: min(680px, 100%); margin: 12px auto 18px; position: relative; }
-.name-search > label { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; color: var(--teal-dark); font-size: 13px; font-weight: 900; }
+.name-search-heading > label { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; color: var(--teal-dark); font-size: 13px; font-weight: 900; }
 .name-search > input { width: 100%; min-height: 49px; padding: 0 15px; border: 2px solid rgba(7, 27, 67, 0.14); border-radius: 12px; background: rgba(255, 253, 247, 0.94); color: var(--ink); font-size: 16px; box-shadow: 0 3px 12px rgba(7, 27, 67, 0.05); }
 .name-search-results { position: absolute; z-index: 4; top: calc(100% + 7px); left: 0; right: 0; max-height: 360px; overflow-y: auto; padding: 8px; border: 1px solid rgba(7, 27, 67, 0.12); border-radius: 14px; background: #fffdf7; box-shadow: 0 14px 35px rgba(7, 27, 67, 0.18); }
 .name-search-results button { width: 100%; min-height: 65px; padding: 9px 11px; border: 0; border-bottom: 1px solid rgba(7, 27, 67, 0.08); background: transparent; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; text-align: left; cursor: pointer; }
@@ -412,7 +412,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
     padding: 12px 16px 0;
     overflow: visible;
     background-size: auto 100dvh;
-    background-attachment: fixed;
+    background-attachment: scroll;
   }
   .topbar { display: flex; justify-content: space-between; gap: 12px; min-height: 54px; }
   .brand { font-size: 28px; letter-spacing: -1px; white-space: nowrap; }
@@ -453,7 +453,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .swipe-card-copy strong { font-size: 57px; }
   .swipe-native { font-size: 35px; }
   .swipe-card-copy i { margin-top: 20px; }
-  .swipe-actions { margin-top: 17px; gap: 13px; }
+  .swipe-actions { margin-top: 28px; gap: 13px; }
   .swipe-action { min-width: 0; width: min(155px, 45%); min-height: 53px; }
   .swipe-help { gap: 15px; }
   .secondary-button { width: 100%; }
@@ -474,7 +474,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .name-identity small { font-size: 8px; padding: 3px 6px; }
   .add-lane-button { min-height: 54px; margin-top: 14px; }
   .name-search { margin: 8px auto 12px; }
-  .name-search > label { margin-bottom: 5px; }
+  .name-search-heading > label { margin-bottom: 5px; }
   .name-lab-view { display: flex; flex-direction: column; align-items: stretch; }
   .feature-view { margin-top: 20px; min-height: auto; padding: 27px 20px; border-radius: 21px; }
   .feature-view h1 { font-size: 42px; margin-top: 13px; }
@@ -535,7 +535,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .swipe-deck { min-height: 254px; }
   .swipe-card-copy strong { font-size: 52px; }
   .swipe-card-copy i { margin-top: 14px; }
-  .swipe-actions { margin-top: 13px; }
+  .swipe-actions { margin-top: 24px; }
   .swipe-help { margin-top: 9px; }
 }
 
@@ -568,7 +568,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .swipe-native { margin-top: 5px; font-size: 30px; }
   .swipe-card-copy i { margin-top: 13px; }
   .swipe-card-copy p { font-size: 19px; }
-  .swipe-actions { margin-top: 13px; }
+  .swipe-actions { margin-top: 24px; }
   .swipe-action { min-height: 48px; }
   .swipe-help { margin-top: 9px; }
 }
@@ -588,7 +588,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
   .swipe-card-copy i { margin-top: 5px; font-size: 8px; }
   .swipe-card-copy p { margin-top: 0; font-size: 17px; }
   .swipe-card-hint { display: none; }
-  .swipe-actions { margin-top: 8px; }
+  .swipe-actions { margin-top: 20px; }
   .swipe-action { min-height: 44px; }
   .swipe-help { display: none; }
 }
@@ -606,3 +606,39 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(31, 95, 224,
 .member-you { padding: 3px 9px; border-radius: 99px; background: rgba(0, 120, 125, 0.1); color: var(--teal-dark); font-size: 12px; font-weight: 800; }
 
 .invite-link input { min-width: 0; width: 100%; flex: 1; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; padding: 6px 0; }
+
+.name-search-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.name-search-heading > label { margin-bottom: 0; }
+@media (max-width: 780px) {
+  .name-search-heading { margin-bottom: 5px; }
+  .name-search-heading > label { margin-bottom: 0; }
+}
+
+@media (max-width: 460px) and (max-height: 700px) {
+  .swipe-intro { display: none; }
+  .match-stage h1 { font-size: 28px; }
+}
+.quick-add-name { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 0 12px; border: 1px solid rgba(0, 120, 125, 0.2); border-radius: 10px; background: rgba(255, 253, 247, 0.94); color: var(--teal-dark); font-size: 13px; font-weight: 900; white-space: nowrap; cursor: pointer; }
+.quick-add-name:hover { background: #e8f3ef; }
+.quick-add-name:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+/* Keep the original collage's edges visible on portrait screens without
+   stretching its stars. The center retains the paper texture underneath. */
+@media (max-width: 780px) {
+  .app-shell::before,
+  .app-shell::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 35.58vw;
+    max-height: 50dvh;
+    z-index: -1;
+    pointer-events: none;
+    background-image: url("/assets/paper-collage-bg.png");
+    background-size: 100vw auto;
+    background-repeat: no-repeat;
+  }
+  .app-shell::before { top: 0; bottom: auto; background-color: transparent; background-position: center top; }
+  .app-shell::after { top: auto; bottom: 0; background-position: center bottom; }
+}
